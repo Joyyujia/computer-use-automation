@@ -1,0 +1,8 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Member Servicing Console</title>
+<style>body{font:14px Arial;background:#d7d7d7;margin:0}.bar{background:#17365d;color:white;padding:12px}table{border-collapse:collapse}.panel{background:#eee;border:3px ridge #bbb;margin:28px auto;padding:18px;width:680px}td{padding:6px}.error{color:#a00;font-weight:bold}.hidden{display:none}</style></head>
+<body><div class="bar">NORTHSTAR CORE :: MEMBER SERVICING</div><div class="panel">
+<form id="lookup"><table><tr><td>Member Number</td><td><input name="memberNumber" aria-label="Member Number"></td></tr>
+<tr><td></td><td><button type="submit">Find Member</button></td></tr></table></form>
+<div id="message" class="error" role="alert"></div>
+<section id="detail" class="hidden"><h2>Member Detail</h2><table border="1"><tr><th>Name</th><td>Jamie Rivera</td></tr><tr><th>Savings Balance</th><td id="balance">$2,418.73</td></tr></table></section>
+</div><script>document.querySelector('#lookup').addEventListener('submit',e=>{e.preventDefault();const v=e.target.memberNumber.value;document.querySelector('#detail').classList.toggle('hidden',v!=='12345');document.querySelector('#message').textContent=v==='12345'?'':'Member not found';});</script></body></html>
