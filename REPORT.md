@@ -1,35 +1,41 @@
 # Architecture
 
-The system is a single TypeScript process around a narrow `Surface` boundary. Playwright is the first adapter because it gives a real, inspectable browser session, while the artifact records semantic controls rather than Playwright calls. Discovery and replay share observation/action primitives but not decision logic: an LLM chooses actions only during discovery; replay interprets a frozen artifact. A local legacy-style member console keeps the demo ethical and reproducible.
+The system is a single TypeScript process with explicit boundaries for orchestration, model decisions, surface control, policy, evidence, replay, and handoff. A run orchestrator owns the browser session rather than either discovery or replay; this makes pausing and transferring the exact same session possible. Playwright is the first surface adapter because it gives a real application surface and observable accessibility semantics, while the artifact remains independent of Playwright types.
 
-The current scaffold implements the replay-side boundary, evidence writer, policy enforcement, and control-transfer state machine. It intentionally does not claim a model run occurred. The next implementation increment adds the model adapter and promotes a discovered artifact only after checkpoint validation.
+Discovery is a bounded observe -> decide -> policy-check -> act loop. The OpenAI adapter requests one strict JSON-schema decision per iteration and disables response storage. A scripted adapter exists only for repeatable tests and marks compiled provenance as non-live. Replay is a separate code path that never calls a model. The single-process choice keeps this vertical slice inspectable; the session registry and evidence interfaces are seams for durable services later.
 
 # Artifact schema
 
-Each capability has an immutable schema version plus an independently evolving semantic version, a caller-facing name/description, typed inputs and outputs, surface compatibility metadata, ordered typed steps, and a final checkpoint. Values distinguish literals from invocation inputs so runtime data never needs to be baked into a recording. Locators contain a primary strategy, bounded fallbacks, optional frame paths, and a human-readable robustness rationale.
+A capability is an agent-callable contract, not a raw transcript. It declares a schema version, semantic version, stable ID, typed inputs and outputs, app-family compatibility, ordered typed steps, locator rationales and fallbacks, risk levels, timeouts, retries, business-outcome detectors, bounded recovery rules, a final checkpoint, approval state, and discovery provenance.
 
-Capabilities begin as `draft`. Approval is separate from successful discovery, leaving room for review and later replay-confidence gates. `appFamily` is the reusable identity; `tenantVariant` can select a narrow override without forking the entire flow.
+The artifact compiler converts successful discovery decisions into parameter references. Runtime member data is represented as `{ source: "input", key: "memberId" }`, never embedded as a discovered literal. Artifacts start as `draft`; a successful model run does not automatically authorize unattended production use. Raw model decisions remain evidence while the normalized artifact becomes the reusable capability.
 
 # Determinism & error handling
 
-Replay validates the whole artifact before opening a browser, substitutes typed invocation values, checks every action against policy, retries only the same recorded action a bounded number of times, and verifies a recorded checkpoint. It never asks a model what to do. Locator preference is semantic role/label first, scoped structural selector second, and coordinates only as an explicit last resort.
+Replay validates the complete artifact and required inputs before acting. For each step it checks known business outcomes, applies only artifact-defined recoveries, enforces policy, resolves the recorded locator sequence, executes the fixed action, records evidence, and finally verifies the checkpoint. Retries repeat the same action; they do not ask a model to improvise.
 
-The result union separates success, expected business outcomes, and failures. Failures carry category, step, observation context, recoverability, and an evidence path. The scaffold implements structured failures and screenshots; recognizing the demo's “member not found” state as a `business_outcome`, known-dialog recovery, and session expiry are the next replay increment.
+The public result distinguishes `success`, `business_outcome`, `intervention_required`, and `failure`. Failure categories include policy denial, timeout, missing target, checkpoint failure, unexpected dialog/state, expired session, control conflict, and internal defects. The demo recognizes “Member not found” as a legitimate business outcome before the later balance locator can fail. Rich failure evidence includes the responsible step, structured events, and a screenshot.
 
 # Heterogeneity & multi-tenant
 
-The recorded verbs operate through a surface adapter. A desktop adapter could implement the same locate/click/fill/extract concepts using an accessibility tree and screenshot coordinates without changing the caller contract. Frame paths and fallback locators cover hostile web surfaces without making DOM details the top-level abstraction.
+The `PlaywrightSurface` implements observation, targeting, action, extraction, and assertion behind a surface boundary. A desktop accessibility adapter could implement the same concepts without changing the capability's caller contract. Locator order favors roles and labels, then visible text and scoped structural selectors, with coordinates reserved for an explicit last resort. Frame paths support hostile legacy layouts.
 
-Artifacts should be stored once per vendor app family and version range. Tenant overlays may replace entrypoints, labels, and a bounded locator map, but not silently alter action meaning or risk. Replay telemetry should cluster failures by app version and tenant; repeated checkpoint or locator failures quarantine the affected compatibility range rather than triggering open-ended model recovery.
+Artifacts are keyed by vendor app family rather than tenant. A production registry would attach supported version ranges and allow narrow tenant overlays for entrypoints, labels, and locator mappings while forbidding silent changes to behavior or risk. Failure telemetry should quarantine a failing tenant/version range and route it for review instead of launching open-ended recovery.
 
 # Escalation & handoff
 
-`HandoffCoordinator` models control as a single-owner lease. Automation requests intervention with run, step, reason, and evidence; a human explicitly takes the same session, records manual actions, and returns the lease before replay continues. This prevents concurrent input and preserves an audit trail. The remaining work is a small authenticated operator route that exposes the existing browser session and persists intervention state rather than keeping it in memory.
+Automation and the operator share a retained Playwright browser context. An intervention contains run, session, step, reason, evidence, state, owner, and human action history. The operator explicitly takes a single-owner control lease; server endpoints reject input when the human does not hold it. The local console polls live screenshots, forwards coordinate clicks and keyboard input to the same page, records redacted action descriptions, and returns the lease before automation resumes.
+
+This is a minimal but real handoff rather than a second browser or a TODO. Production additions would include authentication, encrypted transport, durable intervention state, streaming video, operator identity, lease expiry, and stronger keyboard/input controls.
 
 # Safety
 
-Every step is checked against configurable origin and action allowlists. Irreversible actions are blocked or require confirmation; confirmation is scoped to a step ID rather than the whole run. Evidence is structured and recursively redacted for secret and high-risk identity keys, and artifacts refer to parameters instead of recording supplied values. Production would add schema-driven redaction, encrypted short-lived evidence, tenant isolation, authenticated approvals, and stricter output classification.
+Discovery, replay, recovery, and resumed actions pass through the same configurable policy. It restricts origins and action types and classifies steps as safe, reversible, or irreversible. Irreversible steps are blocked or require approval scoped to the exact run step; an unhandled approval request returns `intervention_required`. Unknown actions and origins fail closed.
+
+Sensitive fields are parameterized, observations sent to the model replace supplied input values with `[SUPPLIED]`, evidence is redacted before serialization, and the live API request uses `store: false`. The demo uses fictional data. Production would require schema-driven field classification, encrypted short-retention evidence, authenticated approvals, tenant isolation, and content-aware screenshot redaction.
 
 # Cuts
 
-The scaffold deliberately omits the real LLM discovery adapter, live operator console, durable session registry, and committed run evidence. Those are visible omissions rather than mocks: the discovery command exits without manufacturing an artifact or log. Next, implement one genuine tool-structured model loop, save its transcript-derived artifact only after validation, add not-found as a business outcome, and demonstrate pause/take-control/resume on the same Playwright context. Desktop support and scaling infrastructure remain design-only.
+The implementation intentionally omits production authentication, durable databases/queues, desktop automation, tenant overlay storage, automatic artifact approval, and unbounded LLM recovery. The operator console is local and intentionally bare. Screenshot redaction is not yet content-aware, so only fictional demo data should be used.
+
+The remaining submission-time action is operational rather than architectural: provide an API key, run one genuine discovery, inspect its redacted bundle, and deliberately commit that evidence plus successful, not-found, and handoff runs. Fixture-driven tests cannot substitute for the assignment's required genuine discovery evidence.

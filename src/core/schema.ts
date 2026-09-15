@@ -30,6 +30,19 @@ export const assertionSchema = z.object({
   timeoutMs: z.number().int().positive().default(5000)
 });
 
+export const outcomeDetectorSchema = z.object({
+  code: z.string().min(1),
+  message: z.string().min(1),
+  assertion: assertionSchema
+});
+
+export const recoveryRuleSchema = z.object({
+  id: z.string().min(1),
+  when: assertionSchema,
+  steps: z.array(z.lazy(() => stepSchema)),
+  maxAttempts: z.number().int().min(1).max(3).default(1)
+});
+
 export const stepSchema = z.object({
   id: z.string().min(1),
   action: z.enum(["navigate", "click", "fill", "select", "extract", "assert"]),
@@ -64,6 +77,13 @@ export const capabilitySchema = z.object({
   outputs: z.record(z.string(), fieldSchema),
   steps: z.array(stepSchema).min(1),
   checkpoint: assertionSchema,
+  businessOutcomes: z.array(outcomeDetectorSchema).default([]),
+  recoveries: z.array(recoveryRuleSchema).default([]),
+  provenance: z.object({
+    discoveryRunId: z.string(),
+    model: z.string(),
+    createdFromLiveRun: z.boolean()
+  }).optional(),
   approval: z.enum(["draft", "approved"]).default("draft"),
   createdAt: z.string().datetime()
 });
@@ -72,12 +92,13 @@ export type Capability = z.infer<typeof capabilitySchema>;
 export type Step = z.infer<typeof stepSchema>;
 
 export type RunResult =
-  | { status: "success"; runId: string; outputs: Record<string, unknown> }
-  | { status: "business_outcome"; runId: string; code: string; message: string }
-  | { status: "failure"; runId: string; error: RunError };
+  | { status: "success"; runId: string; outputs: Record<string, unknown>; evidencePath: string }
+  | { status: "business_outcome"; runId: string; code: string; message: string; evidencePath: string }
+  | { status: "intervention_required"; runId: string; interventionId: string; reason: string; evidencePath: string }
+  | { status: "failure"; runId: string; error: RunError; evidencePath: string };
 
 export type RunError = {
-  category: "policy" | "timeout" | "target_not_found" | "unexpected_state" | "session" | "internal";
+  category: "policy_denied" | "timeout" | "target_not_found" | "checkpoint_failed" | "unexpected_dialog" | "unexpected_state" | "session_expired" | "control_conflict" | "internal";
   stepId?: string;
   message: string;
   expected?: string;

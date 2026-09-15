@@ -14,6 +14,10 @@
     { "id": "read-balance", "action": "extract", "target": { "strategy": "text", "value": "$2,418.73", "fallback": [{ "strategy": "css", "value": "#balance", "fallback": [], "rationale": "Scoped legacy identifier" }], "rationale": "Recorded visible value with structural fallback" }, "outputKey": "balance", "risk": "safe", "timeoutMs": 5000, "retries": 1 }
   ],
   "checkpoint": { "kind": "visible", "locator": { "strategy": "text", "value": "Member Detail", "fallback": [], "rationale": "Semantic end-state heading" }, "expected": { "source": "literal", "value": "Member Detail" }, "timeoutMs": 5000 },
+  "businessOutcomes": [
+    { "code": "member_not_found", "message": "No member exists for the supplied identifier", "assertion": { "kind": "text", "locator": { "strategy": "css", "value": "#message", "fallback": [], "rationale": "Dedicated application alert region" }, "expected": { "source": "literal", "value": "Member not found" }, "timeoutMs": 5000 } }
+  ],
+  "recoveries": [],
   "approval": "draft",
   "createdAt": "2026-09-12T00:00:00.000Z"
 }

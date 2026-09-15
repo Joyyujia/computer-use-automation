@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 export type ControlOwner = "automation" | "human";
 export type Intervention = {
-  id: string; runId: string; stepId?: string; reason: string; evidencePath?: string;
+  id: string; runId: string; sessionId?: string; stepId?: string; reason: string; evidencePath?: string;
   owner: ControlOwner; state: "requested" | "in_progress" | "resumed" | "aborted";
   humanActions: Array<{ at: string; description: string }>;
 };
@@ -22,6 +22,8 @@ export class HandoffCoordinator {
     return item;
   }
   resume(id: string): Intervention { return this.update(id, { owner: "automation", state: "resumed" }); }
+  get(id: string): Intervention { return this.require(id); }
+  list(): Intervention[] { return [...this.requests.values()]; }
   private require(id: string): Intervention { const item = this.requests.get(id); if (!item) throw new Error("Unknown intervention"); return item; }
   private update(id: string, patch: Partial<Intervention>): Intervention { return Object.assign(this.require(id), patch); }
 }

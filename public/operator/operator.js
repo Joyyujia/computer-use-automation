@@ -1,0 +1,6 @@
+let item; const status=document.querySelector('#status'),panel=document.querySelector('#panel'),screen=document.querySelector('#screen');
+async function poll(){const rows=await fetch('/api/interventions').then(r=>r.json());item=rows.find(x=>!['resumed','aborted'].includes(x.state));if(item){panel.hidden=false;status.textContent=`State: ${item.state}`;document.querySelector('#reason').textContent=item.reason;screen.src=`/api/session/${item.sessionId||item.runId}/screenshot?t=${Date.now()}`;}setTimeout(poll,1000)}
+document.querySelector('#take').onclick=()=>fetch(`/api/intervention/${item.id}/take`,{method:'POST'});
+document.querySelector('#resume').onclick=()=>fetch(`/api/intervention/${item.id}/resume`,{method:'POST'});
+screen.onclick=e=>{const r=screen.getBoundingClientRect();fetch(`/api/intervention/${item.id}/click`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({x:(e.clientX-r.left)*screen.naturalWidth/r.width,y:(e.clientY-r.top)*screen.naturalHeight/r.height})})};
+document.querySelector('#type').onclick=()=>fetch(`/api/intervention/${item.id}/type`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:document.querySelector('#text').value})});poll();
