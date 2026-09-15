@@ -28,6 +28,8 @@ export const assertionSchema = z.object({
   locator: locatorSchema.optional(),
   expected: valueSchema,
   timeoutMs: z.number().int().positive().default(5000)
+}).superRefine((assertion, ctx) => {
+  if (assertion.kind !== "url" && !assertion.locator) ctx.addIssue({ code: "custom", message: `${assertion.kind} assertion requires a locator`, path: ["locator"] });
 });
 
 export const outcomeDetectorSchema = z.object({
@@ -53,6 +55,11 @@ export const stepSchema = z.object({
   risk: z.enum(["safe", "reversible", "irreversible"]),
   timeoutMs: z.number().int().positive().default(5000),
   retries: z.number().int().min(0).max(3).default(1)
+}).superRefine((step, ctx) => {
+  if (["click", "fill", "select", "extract"].includes(step.action) && !step.target) ctx.addIssue({ code: "custom", message: `${step.action} requires a target`, path: ["target"] });
+  if (["navigate", "fill", "select"].includes(step.action) && !step.value) ctx.addIssue({ code: "custom", message: `${step.action} requires a value`, path: ["value"] });
+  if (step.action === "extract" && !step.outputKey) ctx.addIssue({ code: "custom", message: "extract requires outputKey", path: ["outputKey"] });
+  if (step.action === "assert" && !step.assertion) ctx.addIssue({ code: "custom", message: "assert requires an assertion", path: ["assertion"] });
 });
 
 const fieldSchema = z.object({
@@ -86,6 +93,14 @@ export const capabilitySchema = z.object({
   }).optional(),
   approval: z.enum(["draft", "approved"]).default("draft"),
   createdAt: z.string().datetime()
+}).superRefine((capability, ctx) => {
+  const ids = new Set<string>();
+  capability.steps.forEach((step, index) => {
+    if (ids.has(step.id)) ctx.addIssue({ code: "custom", message: `Duplicate step id ${step.id}`, path: ["steps", index, "id"] });
+    ids.add(step.id);
+    if (step.value?.source === "input" && !capability.inputs[step.value.key]) ctx.addIssue({ code: "custom", message: `Unknown input ${step.value.key}`, path: ["steps", index, "value"] });
+    if (step.outputKey && !capability.outputs[step.outputKey]) ctx.addIssue({ code: "custom", message: `Unknown output ${step.outputKey}`, path: ["steps", index, "outputKey"] });
+  });
 });
 
 export type Capability = z.infer<typeof capabilitySchema>;

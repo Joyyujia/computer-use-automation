@@ -73,9 +73,12 @@ Open `http://127.0.0.1:4174`, take control, click or type into the live browser,
 ```bash
 npm run check
 npm test
+npm run test:coverage
 ```
 
-The integration suite opens loopback ports and launches Chromium. It uses a scripted model adapter solely for repeatability; fixture runs are explicitly marked `createdFromLiveRun: false` and are not represented as the assignment's genuine model evidence.
+The suite covers domain validation, policy and risk branches, artifact compilation, model-adapter contracts, state transitions, redaction, evidence files, deterministic outcomes and failures, bounded recovery, discovery stopping conditions, and same-session handoff. Coverage thresholds fail the build below 80% statements/lines/functions or 70% branches. The current core coverage is over 95% statements and lines.
+
+Browser integration tests open loopback ports and launch Chromium. They use a scripted model adapter solely for repeatability; fixture runs are explicitly marked `createdFromLiveRun: false` and are not represented as the assignment's genuine model evidence.
 
 ## Architecture map
 

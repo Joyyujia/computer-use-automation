@@ -3,5 +3,6 @@ dist/
 .env
 playwright-report/
 test-results/
+coverage/
 evidence/runs/
 artifacts/generated/

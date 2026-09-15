@@ -29,6 +29,7 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
   const page = options.page ?? await context!.newPage();
   const surface = new PlaywrightSurface(page);
   const outputs: Record<string, unknown> = {};
+  const recoveryAttempts = new Map<string, number>();
   let current: Step | undefined;
   const detectOutcome = async (): Promise<Extract<RunResult, { status: "business_outcome" }> | undefined> => {
     for (const outcome of capability.businessOutcomes) if (await surface.matches(outcome.assertion, inputs)) {
@@ -40,10 +41,15 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
       const before = await detectOutcome(); if (before) { await evidence.result(before); return before; }
       for (const recovery of capability.recoveries) {
         if (!await surface.matches(recovery.when, inputs)) continue;
+        const attempts = recoveryAttempts.get(recovery.id) ?? 0;
+        if (attempts >= recovery.maxAttempts) throw new Error(`Recovery ${recovery.id} exhausted after ${attempts} attempts`);
+        recoveryAttempts.set(recovery.id, attempts + 1);
         await evidence.event({ type: "recovery_started", recoveryId: recovery.id });
         for (const recoveryStep of recovery.steps) {
           enforcePolicy(recoveryStep, options.policy ?? defaultPolicy, options.confirmedStepIds?.includes(recoveryStep.id));
-          await surface.execute(recoveryStep, resolveValue(recoveryStep, inputs));
+          if (recoveryStep.action === "assert" && recoveryStep.assertion) {
+            if (!await surface.matches(recoveryStep.assertion, inputs)) throw new Error(`Recovery assertion failed: ${recoveryStep.id}`);
+          } else await surface.execute(recoveryStep, resolveValue(recoveryStep, inputs));
         }
         await evidence.event({ type: "recovery_completed", recoveryId: recovery.id });
       }
@@ -63,7 +69,12 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
       let extracted: string | undefined;
       let lastError: unknown;
       for (let attempt = 0; attempt <= current.retries; attempt++) {
-        try { extracted = await surface.execute(current, value); lastError = undefined; break; }
+        try {
+          if (current.action === "assert" && current.assertion) {
+            if (!await surface.matches(current.assertion, inputs)) throw new Error(`Assertion failed: ${current.id}`);
+          } else extracted = await surface.execute(current, value);
+          lastError = undefined; break;
+        }
         catch (error) { lastError = error; await evidence.event({ type: "step_retry", stepId: current.id, attempt, error: String(error) }); }
       }
       if (lastError) throw lastError;

@@ -14,14 +14,20 @@ export class HandoffCoordinator {
     this.requests.set(item.id, item);
     return item;
   }
-  takeControl(id: string): Intervention { return this.update(id, { owner: "human", state: "in_progress" }); }
+  takeControl(id: string): Intervention {
+    const item = this.require(id); if (item.state !== "requested" || item.owner !== "automation") throw new Error("Intervention is not awaiting takeover");
+    return this.update(id, { owner: "human", state: "in_progress" });
+  }
   record(id: string, description: string): Intervention {
     const item = this.require(id);
     if (item.owner !== "human") throw new Error("Human does not hold the control lease");
     item.humanActions.push({ at: new Date().toISOString(), description });
     return item;
   }
-  resume(id: string): Intervention { return this.update(id, { owner: "automation", state: "resumed" }); }
+  resume(id: string): Intervention {
+    const item = this.require(id); if (item.state !== "in_progress" || item.owner !== "human") throw new Error("Intervention is not under human control");
+    return this.update(id, { owner: "automation", state: "resumed" });
+  }
   get(id: string): Intervention { return this.require(id); }
   list(): Intervention[] { return [...this.requests.values()]; }
   private require(id: string): Intervention { const item = this.requests.get(id); if (!item) throw new Error("Unknown intervention"); return item; }

@@ -11,4 +11,12 @@ describe("handoff control lease", () => {
     expect(resumed.owner).toBe("automation");
     expect(resumed.humanActions).toHaveLength(1);
   });
+  it("rejects actions before takeover", () => {
+    const handoff = new HandoffCoordinator(); const request = handoff.request({ runId: "run", reason: "blocked" });
+    expect(() => handoff.record(request.id, "clicked")).toThrow(/does not hold/); expect(() => handoff.resume(request.id)).toThrow(/not under human/);
+  });
+  it("rejects duplicate takeover and unknown interventions", () => {
+    const handoff = new HandoffCoordinator(); const request = handoff.request({ runId: "run", reason: "blocked" }); handoff.takeControl(request.id);
+    expect(() => handoff.takeControl(request.id)).toThrow(/not awaiting/); expect(() => handoff.get("missing")).toThrow(/Unknown/);
+  });
 });

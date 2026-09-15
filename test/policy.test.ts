@@ -1,0 +1,16 @@
+import { describe, expect, it } from "vitest";
+import { enforcePolicy, PolicyViolation, type Policy } from "../src/core/policy.js";
+import type { Step } from "../src/core/schema.js";
+
+const policy: Policy = { allowedOrigins: ["https://allowed.example"], allowedActions: ["navigate", "click"], irreversible: "confirm" };
+const step = (overrides: Partial<Step> = {}): Step => ({ id: "x", action: "click", target: { strategy: "text", value: "Go", fallback: [], rationale: "label" }, risk: "safe", timeoutMs: 100, retries: 0, ...overrides });
+
+describe("policy enforcement", () => {
+  it("allows an allowlisted safe action", () => expect(() => enforcePolicy(step(), policy)).not.toThrow());
+  it("denies an action type not in the allowlist", () => expect(() => enforcePolicy(step({ action: "extract" }), policy)).toThrow(PolicyViolation));
+  it("denies a navigation origin not in the allowlist", () => expect(() => enforcePolicy(step({ action: "navigate", value: { source: "literal", value: "https://evil.example/path" } }), policy)).toThrow(/Origin/));
+  it("allows paths on the exact allowlisted origin", () => expect(() => enforcePolicy(step({ action: "navigate", value: { source: "literal", value: "https://allowed.example/path" } }), policy)).not.toThrow());
+  it("requires confirmation for irreversible steps", () => expect(() => enforcePolicy(step({ risk: "irreversible" }), policy)).toThrow(/confirmation/));
+  it("accepts a confirmed irreversible step", () => expect(() => enforcePolicy(step({ risk: "irreversible" }), policy, true)).not.toThrow());
+  it("always blocks irreversible steps under block mode", () => expect(() => enforcePolicy(step({ risk: "irreversible" }), { ...policy, irreversible: "block" }, true)).toThrow(/blocked/));
+});

@@ -1,0 +1,25 @@
+import { describe, expect, it } from "vitest";
+import { compileArtifact } from "../src/core/artifact-compiler.js";
+import type { DiscoveryDecision } from "../src/core/discovery-schema.js";
+
+const locator = { strategy: "css" as const, value: "#x", fallback: [], rationale: "fixture" };
+const checkpoint = { kind: "visible" as const, locator, expected: { source: "literal" as const, value: "Done" }, timeoutMs: 5000 };
+
+describe("artifact compiler", () => {
+  it("parameterizes inputs, declares outputs, and preserves outcomes", () => {
+    const decisions: DiscoveryDecision[] = [
+      { kind: "navigate", url: "http://127.0.0.1:4173", rationale: "open" },
+      { kind: "fill", target: locator, inputKey: "memberId", rationale: "fill" },
+      { kind: "extract", target: locator, outputKey: "balance", rationale: "read" },
+      { kind: "complete", checkpoint, businessOutcomes: [{ code: "not_found", message: "Missing", assertion: checkpoint }], rationale: "done" }
+    ];
+    const artifact = compileArtifact({ goal: "lookup", entrypoint: "http://127.0.0.1:4173", runId: "run-1", model: "live-model", decisions, inputKeys: ["memberId"], checkpoint });
+    expect(artifact.steps).toHaveLength(3); expect(artifact.steps[1].value).toEqual({ source: "input", key: "memberId" });
+    expect(artifact.outputs.balance.sensitive).toBe(true); expect(artifact.businessOutcomes[0].code).toBe("not_found"); expect(artifact.provenance?.createdFromLiveRun).toBe(true);
+  });
+
+  it("marks scripted fixture provenance as non-live", () => {
+    const artifact = compileArtifact({ goal: "test", entrypoint: "http://127.0.0.1:4173", runId: "run-2", model: "scripted-test-fixture", decisions: [{ kind: "navigate", url: "http://127.0.0.1:4173", rationale: "open" }], inputKeys: [], checkpoint });
+    expect(artifact.provenance?.createdFromLiveRun).toBe(false); expect(artifact.approval).toBe("draft");
+  });
+});
