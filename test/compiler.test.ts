@@ -26,4 +26,9 @@ describe("artifact compiler", () => {
   it("rejects known runtime secrets before an artifact can be persisted", () => {
     expect(() => compileArtifact({ goal: "lookup CANARY-SECRET", entrypoint: "http://127.0.0.1:4173", runId: "run-3", model: "live-model", decisions: [{ kind: "navigate", url: "http://127.0.0.1:4173", rationale: "open" }], inputKeys: ["memberId"], checkpoint, sensitiveValues: ["CANARY-SECRET"] })).toThrow(/sensitive runtime value/);
   });
+
+  it("rejects URL state and commonly sensitive text at the artifact boundary", () => {
+    expect(() => compileArtifact({ goal: "lookup", entrypoint: "http://127.0.0.1:4173/?token=secret", runId: "run-4", model: "live-model", decisions: [], inputKeys: [], checkpoint })).toThrow(/non-persistable/);
+    expect(() => compileArtifact({ goal: "Email person@example.com", entrypoint: "http://127.0.0.1:4173", runId: "run-5", model: "live-model", decisions: [{ kind: "navigate", url: "http://127.0.0.1:4173", rationale: "open" }], inputKeys: ["memberId"], checkpoint })).toThrow(/redaction policy/);
+  });
 });

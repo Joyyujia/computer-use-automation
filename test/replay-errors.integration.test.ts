@@ -13,6 +13,7 @@ const loc = (value: string, fallback: Locator[] = []): Locator => ({ strategy: "
 beforeAll(async () => {
   const app = express();
   app.get("/recovery", (_req, res) => res.send(`<button id="dismiss" onclick="this.remove();document.querySelector('#notice').remove()">Dismiss</button><div id="notice">Session notice</div><button id="finish" onclick="document.querySelector('#done').hidden=false">Finish</button><div id="done" hidden>Done</div>`));
+  app.get("/broken-recovery", (_req, res) => res.send(`<div id="notice">Session notice</div><button id="finish" onclick="document.querySelector('#done').hidden=false">Finish</button><div id="done" hidden>Done</div>`));
   app.get("/irreversible", (_req, res) => res.send(`<button id="confirm" onclick="document.querySelector('#done').hidden=false">Confirm</button><div id="done" hidden>Done</div>`));
   app.get("/popup", (_req, res) => res.send(`<button id="open" onclick="window.open('/popup-child')">Open helper</button><div id="done">Done</div>`));
   app.get("/popup-child", (_req, res) => res.send(`<p>Unexpected popup</p>`));
@@ -43,6 +44,13 @@ describe("replay failure and recovery behavior", () => {
   it("returns policy_denied for a forbidden origin", async () => {
     const flow = base([navigate("https://forbidden.example")], { kind: "url", expected: { source: "literal", value: "https://forbidden.example" }, timeoutMs: 100 });
     const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "policy-")) }); expect(result.status).toBe("failure"); if (result.status === "failure") expect(result.error.category).toBe("policy_denied");
+  });
+
+  it("denies the main step before any intervention or recovery side effect", async () => {
+    const flow = base([navigate(`${origin}/recovery`), { id: "blocked-finish", action: "click", target: loc("#finish"), risk: "irreversible", timeoutMs: 500, retries: 0 }], visible("#done"), { recoveries: [{ id: "must-not-run", when: { kind: "text", locator: loc("#notice"), expected: { source: "literal", value: "Session notice" }, timeoutMs: 100 }, steps: [{ id: "dismiss", action: "click", target: loc("#dismiss"), risk: "safe", timeoutMs: 500, retries: 0 }], maxAttempts: 1 }] });
+    const result = await replay(flow, {}, { policy: { ...policy(), irreversible: "block" }, evidenceRoot: await mkdtemp(path.join(tmpdir(), "pre-policy-")) });
+    expect(result.status).toBe("failure"); if (result.status === "failure") expect(result.error.category).toBe("policy_denied");
+    expect(await readFile(path.join(result.evidencePath, "events.jsonl"), "utf8")).not.toContain("recovery_started");
   });
 
   it("reports target_not_found with a screenshot", async () => {
@@ -80,6 +88,25 @@ describe("replay failure and recovery behavior", () => {
     const flow = base([navigate(`${origin}/recovery`), { id: "finish", action: "click", target: loc("#finish"), risk: "safe", timeoutMs: 500, retries: 0 }], visible("#done"), { recoveries: [{ id: "dismiss-notice", when: { kind: "text", locator: loc("#notice"), expected: { source: "literal", value: "Session notice" }, timeoutMs: 100 }, steps: [{ id: "dismiss", action: "click", target: loc("#dismiss"), risk: "safe", timeoutMs: 500, retries: 0 }], maxAttempts: 1 }] });
     const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "recovery-")) }); expect(result.status).toBe("success");
     expect(await readFile(path.join(result.evidencePath, "events.jsonl"), "utf8")).toContain("recovery_completed");
+  });
+
+  it("routes a failed recovery step through human handoff", async () => {
+    const flow = base([navigate(`${origin}/broken-recovery`), { id: "finish", action: "click", target: loc("#finish"), risk: "safe", timeoutMs: 500, retries: 0 }], visible("#done"), { recoveries: [{ id: "broken-dismiss", when: { kind: "text", locator: loc("#notice"), expected: { source: "literal", value: "Session notice" }, timeoutMs: 100 }, steps: [{ id: "missing-dismiss", action: "click", target: loc("#missing-dismiss"), risk: "safe", timeoutMs: 100, retries: 0 }], maxAttempts: 1 }] });
+    let handoffs = 0;
+    const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "recovery-handoff-")), onIntervention: async context => { handoffs += 1; expect(context.step.id).toBe("missing-dismiss"); await context.page.locator("#notice").evaluate(element => element.remove()); return { interventionId: "repair-recovery" }; } });
+    expect(result.status).toBe("success"); expect(handoffs).toBe(1);
+  });
+
+  it("routes final checkpoint and output failures through human handoff", async () => {
+    const checkpointFlow = base([navigate(`${origin}/execution-failure`)], visible("#done"));
+    let checkpointHandoffs = 0;
+    const checkpointResult = await replay(checkpointFlow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "checkpoint-handoff-")), onIntervention: async context => { checkpointHandoffs += 1; expect(context.step.id).toBe("final-verification"); await context.page.locator("#done").evaluate(element => { (element as HTMLElement).hidden = false; }); return { interventionId: "repair-checkpoint" }; } });
+    expect(checkpointResult.status).toBe("success"); expect(checkpointHandoffs).toBe(1);
+
+    const outputFlow = base([navigate(origin)], visible("body"), { outputs: { missing: { type: "string", description: "Required output", sensitive: false } } });
+    let outputHandoffs = 0;
+    const outputResult = await replay(outputFlow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "output-handoff-")), onIntervention: async context => { outputHandoffs += 1; expect(context.reason).toContain("OUTPUT_INVALID"); return { interventionId: "inspect-output" }; } });
+    expect(outputResult.status).toBe("failure"); expect(outputHandoffs).toBe(1); if (outputResult.status === "failure") expect(outputResult.error.category).toBe("output_invalid");
   });
 
   it("returns intervention_required before an unconfirmed irreversible action", async () => {

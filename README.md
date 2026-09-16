@@ -7,7 +7,7 @@ The included target is a fictional legacy-style member-servicing application. Ne
 ## What is implemented
 
 - Genuine OpenAI-powered observe -> decide -> act discovery with an API-compatible strict object response envelope
-- Configured target navigation before the first model call, plus redacted, executable extraction targets in every observation
+- Configured target navigation before the first model call, plus redacted, executable extraction targets from app declarations or labeled legacy fields with stable IDs
 - Versioned, reviewable, parameterized capability artifacts
 - Successful-action-only compilation followed by fresh-browser deterministic validation before artifact persistence
 - Deterministic Playwright replay with bounded competing-state waits and no model fallback
@@ -15,7 +15,7 @@ The included target is a fictional legacy-style member-servicing application. Ne
 - Reviewed success/outcome/recovery contracts kept distinct from model-learned steps
 - Origin/route/action allowlists, popup/redirect checks, resolved navigation checks, and trusted risk inference across locator fallbacks
 - Redaction before persistence, sanitized DOM observations, and sensitive-literal rejection
-- Same-session human handoff for configured interventions and unexpected execution failures, with exclusive control, resume, and abort
+- Same-session human handoff for configured interventions, recovery failures, execution failures, and final verification failures, with exclusive control, resume, and abort
 - Browser acceptance tests for two-member reuse, delayed outcomes, stale state, recovery, ambiguity, frames, leakage, and handoff
 
 ## Setup
@@ -45,6 +45,8 @@ npm run discover -- "Look up member 12345 and read their savings balance"
 ```
 
 Discovery opens and policy-checks the configured entrypoint before the model receives its first observation. It writes a draft capability under `artifacts/generated/` only after replaying that exact generated artifact in a fresh browser and matching its typed outputs. Failed actions are retained in evidence/history but never compiled. It does not silently promote the artifact to approved.
+
+`approval: "draft"` is review metadata in this assignment implementation, not a replay gate: the CLI intentionally executes draft artifacts so a newly discovered capability can be demonstrated and evaluated. A production registry or deployment wrapper should reject non-`approved` artifacts before invoking replay.
 
 The live adapter records provider response IDs and marks provenance as live. The scripted adapter used in tests cannot produce live provenance. A real API-backed run is still required for submission; tests are not a substitute.
 
@@ -122,7 +124,7 @@ The tracked [`evidence/samples/index.json`](evidence/samples/index.json) is expl
 
 ## Learned versus configured
 
-The LLM learns the ordered navigation, fill, click, and extraction targets. The reviewed `lookupBalanceProfile` supplies the required identity-equality checkpoint, detail visibility, output definition, `member_not_found` detector, service-notice recovery, and session-expiry intervention. Model-proposed checkpoints and error detectors are retained as discovery signals but do not replace this reviewed runtime contract.
+The LLM learns the ordered navigation, fill, click, and extraction targets. The reviewed `lookupBalanceProfile` supplies the required identity-equality checkpoint, detail visibility, output definition, `member_not_found` detector, service-notice recovery, and session-expiry intervention. Discovery accepts a business outcome only when the model's assertion and the same-code reviewed detector both match the live page; the reviewed message is returned. Model-proposed checkpoints and error detectors cannot replace this reviewed runtime contract.
 
 ## Evidence policy
 
@@ -133,6 +135,8 @@ Ad-hoc evidence under `evidence/runs/` and generated artifacts are ignored by de
 3. A `member_not_found` replay.
 4. A handoff run showing pause, human actions, and resume.
 
-DOM observations include rendered text, semantic controls, and app-declared stable extraction targets, not raw HTML. Extraction values, elements marked `data-sensitive`, input values, declared sensitive invocation values, and URL query values are redacted before model calls or persistence. Failure evidence is sanitized JSON rather than a screenshot. Operator screenshots are live transport and are not saved by the evidence writer.
+DOM observations include rendered text and semantic controls, not raw HTML. Extraction candidates come first from `data-automation-field`; the legacy fallback admits visible table cells, definition values, and output elements only when they have a stable ID and a nearby semantic label. Their values are always redacted. Unlabeled or selector-unstable legacy fields require human review instead of guessed extraction.
+
+The complete model context—target URL, observation, prior decisions, rationales, alerts, and controls—passes through the persistence redactor. It removes declared runtime values, URL credentials/query/fragment values, tagged extraction values, common email/SSN/currency patterns, and typed human text. Generated artifacts reject URL state and any text the same redactor would change. This is defense in depth, not universal PII detection; fictional data remains mandatory. Failure evidence is sanitized JSON rather than a screenshot, and operator screenshots are live transport only.
 
 Do not commit `.env`, API keys, browser storage state, raw sensitive invocation data, or unreviewed live screenshots.

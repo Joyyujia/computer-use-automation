@@ -19,4 +19,10 @@ describe("run state and evidence", () => {
     await writer.manifest({ apiKey: "secret", nested: { accountNumber: "123", safe: "ok" } }); await writer.event({ token: "secret", action: "click" }); await writer.result({ password: "secret", status: "success" });
     expect(await readFile(writer.path("manifest.json"), "utf8")).not.toContain("secret"); expect(await readFile(writer.path("events.jsonl"), "utf8")).toContain("[REDACTED]"); expect(await readFile(writer.path("result.json"), "utf8")).toContain('"status": "success"');
   });
+  it("redacts URL state, common PII, and currency across arbitrary context strings", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "evidence-context-")); const writer = new EvidenceWriter("run", root); await writer.init();
+    await writer.event({ context: "Open https://example.test/path?token=LEAK-URL#fragment for person@example.com with 123-45-6789 and $2,418.73" });
+    const persisted = await readFile(writer.path("events.jsonl"), "utf8");
+    for (const value of ["LEAK-URL", "fragment", "person@example.com", "123-45-6789", "$2,418.73"]) expect(persisted).not.toContain(value);
+  });
 });

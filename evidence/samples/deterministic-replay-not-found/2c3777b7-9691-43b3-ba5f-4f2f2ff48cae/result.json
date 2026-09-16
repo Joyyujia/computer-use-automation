@@ -1,0 +1,7 @@
+{
+  "status": "business_outcome",
+  "runId": "2c3777b7-9691-43b3-ba5f-4f2f2ff48cae",
+  "code": "member_not_found",
+  "message": "No member exists for the supplied identifier",
+  "evidencePath": "[WORKSPACE]/evidence/samples/deterministic-replay-not-found/2c3777b7-9691-43b3-ba5f-4f2f2ff48cae"
+}

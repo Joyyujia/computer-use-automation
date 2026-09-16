@@ -12,6 +12,7 @@ import { PlaywrightSurface } from "./playwright-surface.js";
 import { defaultPolicy, enforceBrowserState, enforcePolicy, PolicyViolation, type Policy } from "./policy.js";
 import { RunStateMachine } from "./run-state.js";
 import { replay } from "./replay.js";
+import { redactUrl, sensitiveUrlValues } from "./redact.js";
 
 export type DiscoveryResult = { status: "success"; runId: string; artifact: Capability; artifactPath: string; evidencePath: string } | { status: "business_outcome"; runId: string; code: string; message: string; evidencePath: string } | { status: "intervention_required"; runId: string; reason: string; evidencePath: string } | { status: "failure"; runId: string; message: string; evidencePath: string };
 
@@ -35,7 +36,7 @@ export async function discover(options: {
   page?: Page; canAutomationAct?: () => boolean;
   onIntervention?: (context: { runId: string; step: Step; reason: string; capabilityId: string; goal: string; sanitizedContext: Record<string, unknown>; page: Page; evidence: EvidenceWriter }) => Promise<{ interventionId: string }>;
 }): Promise<DiscoveryResult> {
-  const runId = randomUUID(); const sensitiveInputs = Object.values(options.inputs).filter((value): value is string => typeof value === "string" && value.length > 0);
+  const runId = randomUUID(); const sensitiveInputs = [...Object.values(options.inputs).filter((value): value is string => typeof value === "string" && value.length > 0), ...sensitiveUrlValues(options.entrypoint)];
   const evidence = new EvidenceWriter(runId, options.evidenceRoot, sensitiveInputs); await evidence.init(); const profile = options.profile ?? lookupBalanceProfile;
   const safeGoal = Object.entries(options.inputs).reduce((goal, [key, value]) => typeof value === "string" && value ? goal.replaceAll(value, `[INPUT:${key}]`) : goal, options.goal);
   await evidence.ensure("observations"); await evidence.manifest({ runId, mode: "discovery", goal: safeGoal, model: options.model.name, modelBacked: options.model.isLive === true, policy: options.policy ?? defaultPolicy, profile: profile.id, startedAt: new Date().toISOString() });
@@ -73,18 +74,25 @@ export async function discover(options: {
       await enforceBrowserState(page, options.policy ?? defaultPolicy);
     }
     successfulDecisions.push(openDecision); history.push({ decision: openDecision, outcome: "configured target opened" });
-    await evidence.event({ type: "target_opened", url: evidence.sanitize(options.entrypoint) });
+    await evidence.event({ type: "target_opened", url: redactUrl(options.entrypoint) });
     for (let index = 1; index <= (options.maxSteps ?? 12); index++) {
       if (Date.now() > deadline) throw new Error("Discovery timeout exceeded");
       const observation = evidence.sanitize(await surface.observe()); await writeFile(evidence.path("observations", `${String(index).padStart(3, "0")}.json`), JSON.stringify(observation, null, 2) + "\n");
-      const modelCall = options.model.decide({ goal: safeGoal, targetUrl: options.entrypoint, inputs: Object.fromEntries(Object.keys(options.inputs).map(key => [key, "[SUPPLIED]"])), observation, history, remainingSteps: (options.maxSteps ?? 12) - index });
+      const modelCall = options.model.decide({ goal: safeGoal, targetUrl: redactUrl(options.entrypoint), availableBusinessOutcomes: profile.businessOutcomes.map(({ code, message }) => ({ code, message })), inputs: Object.fromEntries(Object.keys(options.inputs).map(key => [key, "[SUPPLIED]"])), observation, history: evidence.sanitize(history), remainingSteps: (options.maxSteps ?? 12) - index });
       const answer = await withTimeout(modelCall, options.modelTimeoutMs ?? 15_000);
       const decision = answer.decision; if (answer.responseId) modelResponseIds.push(answer.responseId); await evidence.event({ type: "model_decision", index, decision, usage: answer.usage, responseId: answer.responseId });
       const signature = JSON.stringify({ state: [observation.url, observation.visibleText, observation.controls], decision }); const seen = (repeated.get(signature) ?? 0) + 1; repeated.set(signature, seen);
       if (seen >= 2) { const result = await requestHuman({ id: `stuck-${index}`, action: "assert", assertion: profile.checkpoint, risk: "safe", timeoutMs: 1000, retries: 0 }, "Discovery repeated the same action without observable progress"); if (result) return result; repeated.clear(); continue; }
       if (decision.kind === "wait") { await sleep(decision.durationMs); history.push({ decision, outcome: "waited" }); continue; }
       if (decision.kind === "complete") { proposedCheckpoint = decision.checkpoint; break; }
-      if (decision.kind === "business_outcome") { state.transition("business_outcome"); const result = { status: "business_outcome" as const, runId, code: decision.code, message: decision.message, evidencePath: evidence.directory }; await evidence.result(result); return result; }
+      if (decision.kind === "business_outcome") {
+        const configured = profile.businessOutcomes.find(outcome => outcome.code === decision.code);
+        if (!configured) throw new Error(`Model reported unconfigured business outcome: ${decision.code}`);
+        if (!await surface.matches(decision.assertion, options.inputs)) throw new Error(`Model business-outcome assertion was not satisfied: ${decision.code}`);
+        if (!await surface.matches(configured.assertion, options.inputs)) throw new Error(`Configured business-outcome contract was not satisfied: ${decision.code}`);
+        await evidence.event({ type: "business_outcome_verified", code: configured.code, modelAssertion: "matched", configuredAssertion: "matched" });
+        state.transition("business_outcome"); const result = { status: "business_outcome" as const, runId, code: configured.code, message: configured.message, evidencePath: evidence.directory }; await evidence.result(result); return result;
+      }
       if (decision.kind === "request_human") { const result = await requestHuman({ id: `human-${index}`, action: "assert", assertion: profile.checkpoint, risk: "safe", timeoutMs: 1000, retries: 0 }, decision.reason); if (result) return result; history.push({ decision, outcome: "human resumed" }); continue; }
       const step = decisionStep(decision, index)!;
       try { enforcePolicy(step, options.policy ?? defaultPolicy); }

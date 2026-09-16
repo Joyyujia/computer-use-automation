@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "runId": "b83ec935-bd6e-4ff9-aaaf-2429a766e4d3",
+  "runId": "87da4139-eed9-47e7-a307-7f01a76b7e9c",
   "artifact": {
     "schemaVersion": "1.0",
     "id": "member.lookup-savings-balance",
@@ -10,7 +10,7 @@
     "surface": {
       "adapter": "playwright",
       "appFamily": "northstar-core",
-      "entrypoint": "http://127.0.0.1:57923"
+      "entrypoint": "http://127.0.0.1:60839"
     },
     "inputs": {
       "memberId": {
@@ -32,7 +32,7 @@
         "action": "navigate",
         "value": {
           "source": "literal",
-          "value": "http://127.0.0.1:57923"
+          "value": "http://127.0.0.1:60839"
         },
         "risk": "safe",
         "timeoutMs": 5000,
@@ -187,7 +187,7 @@
       }
     ],
     "provenance": {
-      "discoveryRunId": "b83ec935-bd6e-4ff9-aaaf-2429a766e4d3",
+      "discoveryRunId": "87da4139-eed9-47e7-a307-7f01a76b7e9c",
       "model": "scripted-test-fixture",
       "createdFromLiveRun": false,
       "configuredAdditions": [
@@ -199,8 +199,8 @@
       "modelResponseIds": []
     },
     "approval": "draft",
-    "createdAt": "2026-09-16T18:14:51.093Z"
+    "createdAt": "2026-09-16T23:23:25.963Z"
   },
-  "artifactPath": "[WORKSPACE]/evidence/samples/artifacts/member.lookup-savings-balance.b83ec935-bd6e-4ff9-aaaf-2429a766e4d3.json",
-  "evidencePath": "[WORKSPACE]/evidence/samples/scripted-discovery/b83ec935-bd6e-4ff9-aaaf-2429a766e4d3"
+  "artifactPath": "[WORKSPACE]/evidence/samples/artifacts/member.lookup-savings-balance.87da4139-eed9-47e7-a307-7f01a76b7e9c.json",
+  "evidencePath": "[WORKSPACE]/evidence/samples/scripted-discovery/87da4139-eed9-47e7-a307-7f01a76b7e9c"
 }

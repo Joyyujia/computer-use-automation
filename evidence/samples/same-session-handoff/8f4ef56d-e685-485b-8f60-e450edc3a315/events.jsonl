@@ -1,0 +1,11 @@
+{"at":"2026-09-16T23:23:26.864Z","type":"step_started","stepId":"step-1","action":"navigate"}
+{"at":"2026-09-16T23:23:26.875Z","type":"step_completed","stepId":"step-1"}
+{"at":"2026-09-16T23:23:26.901Z","type":"intervention_requested","interventionId":"9d64d350-ec28-4abd-8cbe-5318acab9616","stepId":"step-2","reason":"The application session expired"}
+{"at":"2026-09-16T23:23:27.152Z","type":"intervention_resumed","interventionId":"9d64d350-ec28-4abd-8cbe-5318acab9616","humanActions":[{"at":"2026-09-16T23:23:26.940Z","description":"Clicked (467.0703125, 99.5)"}]}
+{"at":"2026-09-16T23:23:27.153Z","type":"intervention_completed","interventionId":"9d64d350-ec28-4abd-8cbe-5318acab9616","stepId":"step-2"}
+{"at":"2026-09-16T23:23:27.156Z","type":"step_started","stepId":"step-2","action":"fill"}
+{"at":"2026-09-16T23:23:27.164Z","type":"step_completed","stepId":"step-2"}
+{"at":"2026-09-16T23:23:27.167Z","type":"step_started","stepId":"step-3","action":"click"}
+{"at":"2026-09-16T23:23:27.194Z","type":"step_completed","stepId":"step-3"}
+{"at":"2026-09-16T23:23:27.257Z","type":"step_started","stepId":"step-4","action":"extract"}
+{"at":"2026-09-16T23:23:27.259Z","type":"step_completed","stepId":"step-4"}

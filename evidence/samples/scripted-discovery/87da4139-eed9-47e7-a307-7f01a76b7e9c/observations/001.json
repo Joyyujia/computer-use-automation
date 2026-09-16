@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:57923/",
+  "url": "http://127.0.0.1:60839/",
   "title": "Member Servicing Console",
   "visibleText": "NORTHSTAR CORE :: MEMBER SERVICING\nMember Number\nFind Member",
   "controls": [
@@ -8,7 +8,6 @@
       "name": "Member Number",
       "tag": "input",
       "disabled": false,
-      "value": "[PRESENT]",
       "frame": []
     },
     {

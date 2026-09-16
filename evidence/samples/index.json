@@ -3,21 +3,21 @@
   "warning": "These fixtures demonstrate mechanics only and do not satisfy the required genuine API-backed discovery run.",
   "discovery": {
     "status": "success",
-    "evidencePath": "evidence/samples/scripted-discovery/b83ec935-bd6e-4ff9-aaaf-2429a766e4d3",
-    "artifactPath": "evidence/samples/artifacts/member.lookup-savings-balance.b83ec935-bd6e-4ff9-aaaf-2429a766e4d3.json"
+    "evidencePath": "evidence/samples/scripted-discovery/87da4139-eed9-47e7-a307-7f01a76b7e9c",
+    "artifactPath": "evidence/samples/artifacts/member.lookup-savings-balance.87da4139-eed9-47e7-a307-7f01a76b7e9c.json"
   },
   "secondMemberReplay": {
     "status": "success",
-    "evidencePath": "evidence/samples/deterministic-replay-second-member/e1f6cd66-9541-4622-be80-c25033c22074"
+    "evidencePath": "evidence/samples/deterministic-replay-second-member/9a237bc2-acb8-4cc4-ad16-b6c9a16575ec"
   },
   "notFoundReplay": {
     "status": "business_outcome",
     "code": "member_not_found",
-    "evidencePath": "evidence/samples/deterministic-replay-not-found/3321707f-8129-4b2b-9f72-6de1660b56b4"
+    "evidencePath": "evidence/samples/deterministic-replay-not-found/2c3777b7-9691-43b3-ba5f-4f2f2ff48cae"
   },
   "sameSessionHandoff": {
     "status": "success",
-    "evidencePath": "evidence/samples/same-session-handoff/a17fa756-1e02-4f23-82ac-cbb977ace3b6",
-    "interventionId": "cdc6ee58-0427-470d-8f72-a85c8c5f76f7"
+    "evidencePath": "evidence/samples/same-session-handoff/8f4ef56d-e685-485b-8f60-e450edc3a315",
+    "interventionId": "9d64d350-ec28-4abd-8cbe-5318acab9616"
   }
 }

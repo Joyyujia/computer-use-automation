@@ -1,8 +1,0 @@
-{
-  "status": "success",
-  "runId": "a17fa756-1e02-4f23-82ac-cbb977ace3b6",
-  "outputs": {
-    "balance": "[REDACTED]"
-  },
-  "evidencePath": "[WORKSPACE]/evidence/samples/same-session-handoff/a17fa756-1e02-4f23-82ac-cbb977ace3b6"
-}

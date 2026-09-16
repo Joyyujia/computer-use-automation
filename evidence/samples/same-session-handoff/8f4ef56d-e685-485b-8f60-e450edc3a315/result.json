@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "runId": "8f4ef56d-e685-485b-8f60-e450edc3a315",
+  "outputs": {
+    "balance": "[REDACTED]"
+  },
+  "evidencePath": "[WORKSPACE]/evidence/samples/same-session-handoff/8f4ef56d-e685-485b-8f60-e450edc3a315"
+}

@@ -58,10 +58,34 @@ describe("vertical slice", () => {
 
   it("returns explicit discovery business outcomes and interventions", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "cua-terminal-"));
-    const business = await discover({ goal: "find missing", entrypoint: origin, inputs: {}, model: new ScriptedModelAdapter([{ kind: "business_outcome", code: "not_found", message: "Missing", assertion: { kind: "url", expected: { source: "literal", value: "about:blank" }, timeoutMs: 100 }, rationale: "observed" }]), policy: policy(), evidenceRoot: path.join(root, "business") });
-    expect(business.status).toBe("business_outcome");
+    const locator = (strategy: "label" | "role" | "css", value: string, name?: string) => ({ strategy, value, name, fallback: [], rationale: "terminal fixture" });
+    const notFound = { kind: "text" as const, locator: locator("css", "#message"), expected: { source: "literal" as const, value: "Member not found" }, timeoutMs: 5000 };
+    const business = await discover({ goal: "find missing member", entrypoint: origin, inputs: { memberId: "99999" }, model: new ScriptedModelAdapter([
+      { kind: "fill", target: locator("label", "Member Number"), inputKey: "memberId", rationale: "enter member" },
+      { kind: "click", target: locator("role", "button", "Find Member"), rationale: "submit" },
+      { kind: "wait", durationMs: 50, rationale: "wait for the pending lookup" },
+      { kind: "business_outcome", code: "member_not_found", message: "model claim", assertion: notFound, rationale: "observed configured outcome" }
+    ]), policy: policy(), evidenceRoot: path.join(root, "business") });
+    expect(business.status).toBe("business_outcome"); if (business.status === "business_outcome") { expect(business.code).toBe("member_not_found"); expect(business.message).toBe("No member exists for the supplied identifier"); }
+    expect(await readFile(path.join(business.evidencePath, "events.jsonl"), "utf8")).toContain("business_outcome_verified");
+    const falseClaim = await discover({ goal: "false missing claim", entrypoint: origin, inputs: { memberId: "99999" }, model: new ScriptedModelAdapter([{ kind: "business_outcome", code: "member_not_found", message: "model claim", assertion: notFound, rationale: "not actually observed" }]), policy: policy(), evidenceRoot: path.join(root, "false-business") });
+    expect(falseClaim.status).toBe("failure"); if (falseClaim.status === "failure") expect(falseClaim.message).toContain("assertion was not satisfied");
     const intervention = await discover({ goal: "handle challenge", entrypoint: origin, inputs: {}, model: new ScriptedModelAdapter([{ kind: "request_human", reason: "challenge", rationale: "unsafe" }]), policy: policy(), evidenceRoot: path.join(root, "human") });
     expect(intervention.status).toBe("intervention_required");
+  }, 20_000);
+
+  it("redacts the complete model context, including URL state and prior model text", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "cua-context-redaction-"));
+    const model = new ScriptedModelAdapter([
+      { kind: "wait", durationMs: 50, rationale: "Observed $2,418.73 for person@example.com" },
+      { kind: "request_human", reason: "stop", rationale: "done" }
+    ]);
+    const result = await discover({ goal: "inspect safely", entrypoint: `${origin}/?token=LEAK-URL-9191#private-fragment`, inputs: {}, model, policy: policy(), evidenceRoot: root });
+    expect(result.status).toBe("intervention_required");
+    const contexts = JSON.stringify(model.contexts);
+    for (const value of ["LEAK-URL-9191", "private-fragment", "$2,418.73", "person@example.com"]) expect(contexts).not.toContain(value);
+    expect(model.contexts[0]?.targetUrl).toContain("REDACTED");
+    expect(await readFile(path.join(result.evidencePath, "events.jsonl"), "utf8")).not.toContain("LEAK-URL-9191");
   }, 20_000);
 
   it("fails discovery on step exhaustion and unsatisfied checkpoints", async () => {

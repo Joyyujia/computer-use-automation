@@ -37,17 +37,24 @@ export class PlaywrightSurface {
     throw new Error(`Unsupported locator strategy: ${locator.strategy}`);
   }
 
-  async resolve(locator: Locator): Promise<PwLocator> {
+  async resolve(locator: Locator, timeoutMs = 0): Promise<PwLocator> {
     const candidates = [locator, ...locator.fallback];
-    for (const item of candidates) {
-      if (item.strategy === "coordinates") continue;
-      const candidate = await this.candidate(item);
-      const count = await candidate.count();
-      if (count === 0) continue;
-      if (count > 1) throw new Error(`Ambiguous locator matched ${count} elements: ${item.strategy}:${item.value}`);
-      if (!await candidate.isVisible()) throw new Error(`Locator matched a hidden element: ${item.strategy}:${item.value}`);
-      return candidate;
-    }
+    const deadline = Date.now() + timeoutMs; let hidden: Locator | undefined;
+    do {
+      hidden = undefined;
+      for (const item of candidates) {
+        if (item.strategy === "coordinates") continue;
+        const candidate = await this.candidate(item);
+        const count = await candidate.count();
+        if (count === 0) continue;
+        if (count > 1) throw new Error(`Ambiguous locator matched ${count} elements: ${item.strategy}:${item.value}`);
+        if (!await candidate.isVisible()) { hidden = item; break; }
+        return candidate;
+      }
+      if (Date.now() >= deadline) break;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } while (true);
+    if (hidden) throw new Error(`Locator matched a hidden element: ${hidden.strategy}:${hidden.value}`);
     throw new Error(`No locator matched: ${locator.strategy}:${locator.value}`);
   }
 
@@ -62,7 +69,7 @@ export class PlaywrightSurface {
       await this.page.mouse.click(x, y);
       return;
     }
-    const target = await this.resolve(step.target);
+    const target = await this.resolve(step.target, step.timeoutMs);
     if (["click", "fill", "select"].includes(step.action) && !await target.isEnabled()) throw new Error(`Target is not enabled: ${step.target.strategy}:${step.target.value}`);
     if (step.action === "fill" && !await target.isEditable()) throw new Error(`Target is not editable: ${step.target.strategy}:${step.target.value}`);
     if (step.action === "click") await target.click({ timeout: step.timeoutMs });
@@ -107,24 +114,29 @@ export class PlaywrightSurface {
           return "";
         }
       };
+      const extractableSelector = "[data-automation-field][id],tr>td[id],dd[id],output[id]";
+      const sensitiveSelector = `[data-sensitive],${extractableSelector}`;
       const controls = Array.from(body.querySelectorAll("button,input,select,textarea,a,[role]"))
         .filter(el => helpers.visible(el)).slice(0, 50).map((el) => ({
           role: helpers.semanticRole(el),
-          name: el.matches("[data-sensitive],[data-automation-field]") || el.querySelector("[data-sensitive],[data-automation-field]") ? "[REDACTED]" : el.getAttribute("aria-label") || (el instanceof HTMLInputElement ? el.labels?.[0]?.textContent?.trim() : undefined) || (el.textContent ?? "").trim() || "",
+          name: el.matches(sensitiveSelector) || el.querySelector(sensitiveSelector) ? "[REDACTED]" : el.getAttribute("aria-label") || (el instanceof HTMLInputElement ? el.labels?.[0]?.textContent?.trim() : undefined) || (el.textContent ?? "").trim() || "",
           tag: el.tagName.toLowerCase(), type: el.getAttribute("type") ?? undefined,
           disabled: (el as HTMLInputElement).disabled === true,
           value: el instanceof HTMLInputElement && el.value ? "[PRESENT]" : undefined,
           frame: framePath
         }));
       const alerts = Array.from(body.querySelectorAll("[role=alert]"))
-        .filter(el => helpers.visible(el)).map((el) => el.matches("[data-sensitive],[data-automation-field]") || el.querySelector("[data-sensitive],[data-automation-field]") ? "[REDACTED]" : (el.textContent ?? "").trim()).filter(Boolean);
+        .filter(el => helpers.visible(el)).map((el) => el.matches(sensitiveSelector) || el.querySelector(sensitiveSelector) ? "[REDACTED]" : (el.textContent ?? "").trim()).filter(Boolean);
       const extractables = Array.from(body.querySelectorAll("[data-automation-field][id]"))
+        .concat(Array.from(body.querySelectorAll("tr>td[id],dd[id],output[id]"))).filter((el, index, all) => all.indexOf(el) === index)
         .filter(el => helpers.visible(el)).slice(0, 50).map((el) => {
-          const logicalTarget = el.getAttribute("data-automation-field")!;
+          const declaredTarget = el.getAttribute("data-automation-field");
+          const logicalTarget = declaredTarget || el.id;
           const rowLabel = el.closest("tr")?.querySelector("th")?.textContent?.trim();
+          const definitionLabel = el.previousElementSibling?.matches("dt") ? el.previousElementSibling.textContent?.trim() : undefined;
           return {
-            name: rowLabel || logicalTarget,
-            target: { strategy: "css" as const, value: `#${CSS.escape(el.id)}`, name: "", frame: framePath, logicalTarget, fallback: [], rationale: "Application-declared extractable field" },
+            name: rowLabel || definitionLabel || el.getAttribute("aria-label") || logicalTarget,
+            target: { strategy: "css" as const, value: `#${CSS.escape(el.id)}`, name: "", frame: framePath, logicalTarget, fallback: [], rationale: declaredTarget ? "Application-declared extractable field" : "Legacy structural extraction candidate with a stable id and nearby label" },
             value: "[REDACTED]" as const
           };
         });
@@ -132,7 +144,7 @@ export class PlaywrightSurface {
       const walker = body.ownerDocument.createTreeWalker(body, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const parent = node.parentElement; if (!parent || ["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"].includes(parent.tagName) || !helpers.visible(parent)) continue;
-        const sensitive = parent.closest("[data-sensitive],[data-automation-field]");
+        const sensitive = parent.closest(sensitiveSelector);
         if (sensitive) { if (!redacted.has(sensitive)) { text.push("[REDACTED]"); redacted.add(sensitive); } continue; }
         const value = node.textContent?.replace(/\s+/g, " ").trim(); if (value) text.push(value);
       }

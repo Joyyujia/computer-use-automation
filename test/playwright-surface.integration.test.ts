@@ -39,4 +39,18 @@ describe("Playwright surface observation and targeting", () => {
     expect(observation.extractables).toEqual([{ name: "Savings Balance", target: { strategy: "css", value: "#balance", name: "", frame: [], logicalTarget: "balance", fallback: [], rationale: "Application-declared extractable field" }, value: "[REDACTED]" }]);
     expect(JSON.stringify(observation)).not.toContain("$9,999.99");
   });
+
+  it("offers a labeled stable-id fallback for legacy extraction fields", async () => {
+    await page.setContent(`<table><tr><th>Legacy Balance</th><td id="legacy-balance">$7,654.32</td></tr></table>`);
+    const observation = await new PlaywrightSurface(page).observe();
+    expect(observation.extractables).toContainEqual(expect.objectContaining({ name: "Legacy Balance", target: expect.objectContaining({ value: "#legacy-balance", logicalTarget: "legacy-balance", rationale: expect.stringContaining("Legacy structural") }) }));
+    expect(JSON.stringify(observation)).not.toContain("$7,654.32");
+  });
+
+  it("waits within the step deadline for a delayed control", async () => {
+    await page.setContent(`<div id="result">pending</div><script>setTimeout(()=>{const button=document.createElement('button');button.id='delayed';button.textContent='Continue';button.onclick=()=>document.querySelector('#result').textContent='clicked';document.body.append(button)},100)</script>`);
+    const surface = new PlaywrightSurface(page);
+    await surface.execute({ id: "delayed-click", action: "click", target: { strategy: "css", value: "#delayed", fallback: [], rationale: "appears asynchronously" }, risk: "safe", timeoutMs: 1000, retries: 0 });
+    expect(await page.locator("#result").textContent()).toBe("clicked");
+  });
 });

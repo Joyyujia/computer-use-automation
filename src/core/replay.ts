@@ -37,23 +37,6 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
   const detectIntervention = async () => {
     for (const intervention of capability.interventions) if (await surface.matches(intervention.assertion, inputs)) return intervention;
   };
-  const applyRecoveries = async (): Promise<boolean> => {
-    let applied = false;
-    for (const recovery of capability.recoveries) {
-      if (!await surface.matches(recovery.when, inputs)) continue;
-      const attempts = recoveryAttempts.get(recovery.id) ?? 0;
-      if (attempts >= recovery.maxAttempts) throw new Error(`Recovery ${recovery.id} exhausted after ${attempts} attempts`);
-      recoveryAttempts.set(recovery.id, attempts + 1); applied = true; await evidence.event({ type: "recovery_started", recoveryId: recovery.id });
-      for (const recoveryStep of recovery.steps) {
-        const recoveryValue = resolveValue(recoveryStep, inputs);
-        enforcePolicy(recoveryStep, options.policy ?? defaultPolicy, options.confirmedStepIds?.includes(recoveryStep.id), recoveryValue);
-        if (recoveryStep.action === "assert" && recoveryStep.assertion) { if (!await surface.matches(recoveryStep.assertion, inputs)) throw new Error(`Recovery assertion failed: ${recoveryStep.id}`); }
-        else { await surface.execute(recoveryStep, recoveryValue); await enforceBrowserState(page, options.policy ?? defaultPolicy); }
-      }
-      await evidence.event({ type: "recovery_completed", recoveryId: recovery.id });
-    }
-    return applied;
-  };
   const handleIntervention = async (intervention: Capability["interventions"][number], step: Step): Promise<RunResult | "retry_step" | "verify_then_continue"> => {
     if (!options.onIntervention) {
       const result: RunResult = { status: "intervention_required", runId, interventionId: randomUUID(), reason: intervention.message, evidencePath: evidence.directory };
@@ -67,7 +50,7 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
     if (intervention.resume === "verify_then_continue" && intervention.resumeAssertion && !await surface.matches(intervention.resumeAssertion, inputs)) throw new Error(`Human intervention did not satisfy resume assertion: ${intervention.code}`);
     return intervention.resume;
   };
-  const handleExecutionFailure = async (step: Step, error: unknown, value?: string): Promise<RunResult | "retry_step" | "verified_by_human" | undefined> => {
+  const handleExecutionFailure = async (step: Step, error: unknown, value?: string, clearedAssertion?: Capability["checkpoint"]): Promise<RunResult | "retry_step" | "verified_by_human" | undefined> => {
     if (!options.onIntervention) return;
     const message = error instanceof Error ? error.message : String(error);
     const retryIsSafe = ["fill", "select", "extract", "assert"].includes(step.action);
@@ -83,27 +66,101 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
     await enforceBrowserState(page, options.policy ?? defaultPolicy);
     const outcome = await detectOutcome();
     if (outcome) { await evidence.result(outcome); return outcome; }
-    const establishedState = step.action === "navigate" && value ? new URL(page.url()).href === new URL(value).href : await surface.matches(capability.checkpoint, inputs);
+    const establishedState = clearedAssertion ? !await surface.matches(clearedAssertion, inputs) : step.action === "navigate" && value ? new URL(page.url()).href === new URL(value).href : await surface.matches(capability.checkpoint, inputs);
     if (!establishedState) throw new Error(`Human intervention did not establish a verified post-action state for ${step.id}`);
     return "verified_by_human";
+  };
+  const authorizeStep = async (step: Step, value?: string): Promise<RunResult | undefined> => {
+    try { enforcePolicy(step, options.policy ?? defaultPolicy, options.confirmedStepIds?.includes(step.id), value); }
+    catch (error) {
+      if (!(error instanceof PolicyViolation) || !error.message.includes("requires explicit confirmation")) throw error;
+      const policyIntervention = { code: "approval_required", message: error.message, assertion: capability.checkpoint, resume: "retry_step" as const };
+      const result = await handleIntervention(policyIntervention, step); if (typeof result !== "string") return result;
+      enforcePolicy(step, options.policy ?? defaultPolicy, true, value);
+    }
+  };
+  const executeOnce = async (step: Step, value?: string): Promise<string | undefined> => {
+    if (step.action === "assert" && step.assertion) { if (!await surface.matches(step.assertion, inputs)) throw new Error(`Assertion failed: ${step.id}`); return; }
+    const extracted = await surface.execute(step, value); await enforceBrowserState(page, options.policy ?? defaultPolicy); return extracted;
+  };
+  const applyRecoveries = async (): Promise<{ applied: boolean; terminal?: RunResult }> => {
+    let applied = false;
+    for (const recovery of capability.recoveries) {
+      if (!await surface.matches(recovery.when, inputs)) continue;
+      const attempts = recoveryAttempts.get(recovery.id) ?? 0;
+      if (attempts >= recovery.maxAttempts) {
+        const error = new Error(`Recovery ${recovery.id} exhausted after ${attempts} attempts`);
+        const recoveryStep = recovery.steps.at(-1) ?? { id: `recovery-${recovery.id}`, action: "assert" as const, assertion: recovery.when, risk: "safe" as const, timeoutMs: recovery.when.timeoutMs, retries: 0 };
+        const handoff = await handleExecutionFailure(recoveryStep, error, resolveValue(recoveryStep, inputs), recovery.when);
+        if (!handoff) throw error;
+        if (typeof handoff !== "string") return { applied, terminal: handoff };
+        if (await surface.matches(recovery.when, inputs)) throw error;
+        applied = true; await evidence.event({ type: "recovery_completed_by_human", recoveryId: recovery.id }); continue;
+      }
+      recoveryAttempts.set(recovery.id, attempts + 1); applied = true; await evidence.event({ type: "recovery_started", recoveryId: recovery.id });
+      for (const recoveryStep of recovery.steps) {
+        const recoveryValue = resolveValue(recoveryStep, inputs);
+        const authorization = await authorizeStep(recoveryStep, recoveryValue); if (authorization) return { applied, terminal: authorization };
+        try { await executeOnce(recoveryStep, recoveryValue); }
+        catch (error) {
+          const handoff = await handleExecutionFailure(recoveryStep, error, recoveryValue, recovery.when);
+          if (!handoff) throw error;
+          if (typeof handoff !== "string") return { applied, terminal: handoff };
+          if (handoff === "retry_step") {
+            try { await executeOnce(recoveryStep, recoveryValue); }
+            catch (retryError) { throw new Error(`Recovery step ${recoveryStep.id} still failed after human intervention: ${retryError instanceof Error ? retryError.message : String(retryError)}`); }
+          }
+        }
+      }
+      if (await surface.matches(recovery.when, inputs)) {
+        const error = new Error(`Recovery ${recovery.id} did not clear its triggering condition`);
+        const recoveryStep = recovery.steps.at(-1) ?? { id: `recovery-${recovery.id}`, action: "assert" as const, assertion: recovery.when, risk: "safe" as const, timeoutMs: recovery.when.timeoutMs, retries: 0 };
+        const handoff = await handleExecutionFailure(recoveryStep, error, resolveValue(recoveryStep, inputs), recovery.when);
+        if (!handoff) throw error;
+        if (typeof handoff !== "string") return { applied, terminal: handoff };
+        if (await surface.matches(recovery.when, inputs)) throw error;
+      }
+      await evidence.event({ type: "recovery_completed", recoveryId: recovery.id });
+    }
+    return { applied };
   };
   const waitForCompetingState = async (step: Step): Promise<RunResult | undefined> => {
     const deadline = Date.now() + step.timeoutMs;
     while (Date.now() <= deadline) {
       const outcome = await detectOutcome(); if (outcome) { await evidence.result(outcome); return outcome; }
       const intervention = await detectIntervention(); if (intervention) { const result = await handleIntervention(intervention, step); if (typeof result !== "string") return result; }
-      if (await applyRecoveries()) { await sleep(50); continue; }
+      const recovery = await applyRecoveries(); if (recovery.terminal) return recovery.terminal; if (recovery.applied) { await sleep(50); continue; }
       if (await surface.matches(capability.checkpoint, inputs)) return;
       await sleep(50);
     }
     throw new Error(`TERMINAL_TIMEOUT: no success, business outcome, recovery, or intervention state appeared within ${step.timeoutMs}ms`);
   };
+  const verifyFinalState = async (): Promise<void> => {
+    for (const assertion of [capability.checkpoint, ...capability.successAssertions]) if (!await surface.matches(assertion, inputs)) throw new Error("CHECKPOINT_FAILED: required success assertion was not satisfied");
+    if (await detectOutcome()) throw new Error("CHECKPOINT_FAILED: contradictory business outcome is active");
+    for (const [key, definition] of Object.entries(capability.outputs)) {
+      if (!(key in outputs) || outputs[key] === undefined) throw new Error(`OUTPUT_INVALID: required output ${key} is missing`);
+      if (typeof outputs[key] !== definition.type) throw new Error(`OUTPUT_INVALID: output ${key} must be ${definition.type}`);
+    }
+  };
+  const refreshInvalidOutputs = async (): Promise<RunResult | undefined> => {
+    for (const [key, definition] of Object.entries(capability.outputs)) {
+      if (key in outputs && outputs[key] !== undefined && typeof outputs[key] === definition.type) continue;
+      const extraction = capability.steps.find(step => step.action === "extract" && step.outputKey === key);
+      if (!extraction) continue;
+      const value = resolveValue(extraction, inputs); const authorization = await authorizeStep(extraction, value); if (authorization) return authorization;
+      outputs[key] = await executeOnce(extraction, value); if (definition.sensitive) evidence.addSensitiveValues([outputs[key]]);
+      await evidence.event({ type: "output_refreshed_after_intervention", stepId: extraction.id, outputKey: key });
+    }
+  };
 
   try {
     steps: for (current of capability.steps) {
+      const value = resolveValue(current, inputs);
+      const authorization = await authorizeStep(current, value); if (authorization) return authorization;
       if (current.action !== "navigate") {
         const intervention = await detectIntervention(); if (intervention) { const result = await handleIntervention(intervention, current); if (typeof result !== "string") return result; if (result === "verify_then_continue") { await evidence.event({ type: "step_completed_by_human", stepId: current.id }); continue steps; } }
-        await applyRecoveries();
+        const recovery = await applyRecoveries(); if (recovery.terminal) return recovery.terminal;
       }
       if (current.action === "extract") {
         try { const terminal = await waitForCompetingState(current); if (terminal) return terminal; }
@@ -114,19 +171,11 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
           const terminal = await waitForCompetingState(current); if (terminal) return terminal;
         }
       }
-      const value = resolveValue(current, inputs);
-      try { enforcePolicy(current, options.policy ?? defaultPolicy, options.confirmedStepIds?.includes(current.id), value); }
-      catch (error) {
-        if (!(error instanceof PolicyViolation) || !error.message.includes("requires explicit confirmation")) throw error;
-        const policyIntervention = { code: "approval_required", message: error.message, assertion: capability.checkpoint, resume: "retry_step" as const };
-        const result = await handleIntervention(policyIntervention, current); if (typeof result !== "string") return result; enforcePolicy(current, options.policy ?? defaultPolicy, true, value);
-      }
       await evidence.event({ type: "step_started", stepId: current.id, action: current.action });
       let extracted: string | undefined; let lastError: unknown;
       for (let attempt = 0; attempt <= current.retries; attempt++) {
         try {
-          if (current.action === "assert" && current.assertion) { if (!await surface.matches(current.assertion, inputs)) throw new Error(`Assertion failed: ${current.id}`); }
-          else { extracted = await surface.execute(current, value); await enforceBrowserState(page, options.policy ?? defaultPolicy); }
+          extracted = await executeOnce(current, value);
           lastError = undefined; break;
         } catch (error) { lastError = error; await evidence.event({ type: "step_retry", stepId: current.id, attempt, error: String(error) }); if (["click", "navigate"].includes(current.action)) break; }
       }
@@ -136,19 +185,21 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
         if (typeof handoff !== "string") return handoff;
         if (handoff === "retry_step") {
           try {
-            if (current.action === "assert" && current.assertion) { if (!await surface.matches(current.assertion, inputs)) throw new Error(`Assertion failed after human intervention: ${current.id}`); }
-            else { extracted = await surface.execute(current, value); await enforceBrowserState(page, options.policy ?? defaultPolicy); }
+            extracted = await executeOnce(current, value);
           } catch (retryError) { throw new Error(`Step ${current.id} still failed after human intervention: ${retryError instanceof Error ? retryError.message : String(retryError)}`); }
         }
       }
       if (current.outputKey) { outputs[current.outputKey] = extracted; if (capability.outputs[current.outputKey]?.sensitive) evidence.addSensitiveValues([extracted]); }
       await evidence.event({ type: "step_completed", stepId: current.id });
     }
-    for (const assertion of [capability.checkpoint, ...capability.successAssertions]) if (!await surface.matches(assertion, inputs)) throw new Error("CHECKPOINT_FAILED: required success assertion was not satisfied");
-    if (await detectOutcome()) throw new Error("CHECKPOINT_FAILED: contradictory business outcome is active");
-    for (const [key, definition] of Object.entries(capability.outputs)) {
-      if (!(key in outputs) || outputs[key] === undefined) throw new Error(`OUTPUT_INVALID: required output ${key} is missing`);
-      if (typeof outputs[key] !== definition.type) throw new Error(`OUTPUT_INVALID: output ${key} must be ${definition.type}`);
+    try { await verifyFinalState(); }
+    catch (error) {
+      const verificationStep: Step = { id: "final-verification", action: "assert", assertion: capability.checkpoint, risk: "safe", timeoutMs: capability.checkpoint.timeoutMs, retries: 0 };
+      const handoff = await handleExecutionFailure(verificationStep, error);
+      if (!handoff) throw error;
+      if (typeof handoff !== "string") return handoff;
+      const terminal = await refreshInvalidOutputs(); if (terminal) return terminal;
+      await verifyFinalState();
     }
     const result: RunResult = { status: "success", runId, outputs, evidencePath: evidence.directory };
     await evidence.result({ ...result, outputs: Object.fromEntries(Object.entries(outputs).map(([key, value]) => [key, capability.outputs[key]?.sensitive ? "[REDACTED]" : value])) }); return result;

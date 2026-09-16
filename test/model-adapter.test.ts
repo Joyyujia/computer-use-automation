@@ -3,7 +3,7 @@ import { OpenAIModelAdapter, ScriptedModelAdapter, type ModelContext } from "../
 import { discoveryDecisionJsonSchema, toModelDecisionEnvelope } from "../src/core/discovery-schema.js";
 
 const decision = { kind: "request_human" as const, reason: "unknown dialog", rationale: "safe stop" };
-const context: ModelContext = { goal: "test", targetUrl: "https://allowed.example", inputs: {}, observation: { url: "https://allowed.example", title: "", visibleText: "", controls: [], extractables: [], alerts: [] }, history: [], remainingSteps: 2 };
+const context: ModelContext = { goal: "test", targetUrl: "https://allowed.example", availableBusinessOutcomes: [], inputs: {}, observation: { url: "https://allowed.example", title: "", visibleText: "", controls: [], extractables: [], alerts: [] }, history: [], remainingSteps: 2 };
 afterEach(() => vi.unstubAllGlobals());
 
 describe("model adapters", () => {

@@ -1,0 +1,6 @@
+{"at":"2026-09-16T23:23:26.626Z","type":"step_started","stepId":"step-1","action":"navigate"}
+{"at":"2026-09-16T23:23:26.638Z","type":"step_completed","stepId":"step-1"}
+{"at":"2026-09-16T23:23:26.649Z","type":"step_started","stepId":"step-2","action":"fill"}
+{"at":"2026-09-16T23:23:26.660Z","type":"step_completed","stepId":"step-2"}
+{"at":"2026-09-16T23:23:26.662Z","type":"step_started","stepId":"step-3","action":"click"}
+{"at":"2026-09-16T23:23:26.687Z","type":"step_completed","stepId":"step-3"}
