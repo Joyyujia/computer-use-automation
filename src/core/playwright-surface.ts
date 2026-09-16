@@ -91,53 +91,65 @@ export class PlaywrightSurface {
 
   private async snapshot(scope: Page | Frame, frame: string[]) {
     return scope.locator("body").evaluate((body, framePath) => {
-      const visible = (el: Element) => {
-        const style = getComputedStyle(el as HTMLElement);
-        const rect = (el as HTMLElement).getBoundingClientRect();
-        return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
-      };
-      const semanticRole = (el: Element) => {
-        const explicit = el.getAttribute("role"); if (explicit) return explicit;
-        if (el instanceof HTMLButtonElement) return "button";
-        if (el instanceof HTMLAnchorElement && el.hasAttribute("href")) return "link";
-        if (el instanceof HTMLSelectElement) return "combobox";
-        if (el instanceof HTMLTextAreaElement) return "textbox";
-        if (el instanceof HTMLInputElement) return ["button","submit","reset"].includes(el.type) ? "button" : el.type === "checkbox" ? "checkbox" : el.type === "radio" ? "radio" : "textbox";
-        return "";
+      const helpers = {
+        visible(el: Element) {
+          const style = getComputedStyle(el as HTMLElement);
+          const rect = (el as HTMLElement).getBoundingClientRect();
+          return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+        },
+        semanticRole(el: Element) {
+          const explicit = el.getAttribute("role"); if (explicit) return explicit;
+          if (el instanceof HTMLButtonElement) return "button";
+          if (el instanceof HTMLAnchorElement && el.hasAttribute("href")) return "link";
+          if (el instanceof HTMLSelectElement) return "combobox";
+          if (el instanceof HTMLTextAreaElement) return "textbox";
+          if (el instanceof HTMLInputElement) return ["button","submit","reset"].includes(el.type) ? "button" : el.type === "checkbox" ? "checkbox" : el.type === "radio" ? "radio" : "textbox";
+          return "";
+        }
       };
       const controls = Array.from(body.querySelectorAll("button,input,select,textarea,a,[role]"))
-        .filter(visible).slice(0, 50).map((el) => ({
-          role: semanticRole(el),
-          name: el.matches("[data-sensitive]") || el.querySelector("[data-sensitive]") ? "[REDACTED]" : el.getAttribute("aria-label") || (el instanceof HTMLInputElement ? el.labels?.[0]?.textContent?.trim() : undefined) || (el.textContent ?? "").trim() || "",
+        .filter(el => helpers.visible(el)).slice(0, 50).map((el) => ({
+          role: helpers.semanticRole(el),
+          name: el.matches("[data-sensitive],[data-automation-field]") || el.querySelector("[data-sensitive],[data-automation-field]") ? "[REDACTED]" : el.getAttribute("aria-label") || (el instanceof HTMLInputElement ? el.labels?.[0]?.textContent?.trim() : undefined) || (el.textContent ?? "").trim() || "",
           tag: el.tagName.toLowerCase(), type: el.getAttribute("type") ?? undefined,
           disabled: (el as HTMLInputElement).disabled === true,
           value: el instanceof HTMLInputElement && el.value ? "[PRESENT]" : undefined,
           frame: framePath
         }));
       const alerts = Array.from(body.querySelectorAll("[role=alert]"))
-        .filter(visible).map((el) => el.matches("[data-sensitive]") || el.querySelector("[data-sensitive]") ? "[REDACTED]" : (el.textContent ?? "").trim()).filter(Boolean);
+        .filter(el => helpers.visible(el)).map((el) => el.matches("[data-sensitive],[data-automation-field]") || el.querySelector("[data-sensitive],[data-automation-field]") ? "[REDACTED]" : (el.textContent ?? "").trim()).filter(Boolean);
+      const extractables = Array.from(body.querySelectorAll("[data-automation-field][id]"))
+        .filter(el => helpers.visible(el)).slice(0, 50).map((el) => {
+          const logicalTarget = el.getAttribute("data-automation-field")!;
+          const rowLabel = el.closest("tr")?.querySelector("th")?.textContent?.trim();
+          return {
+            name: rowLabel || logicalTarget,
+            target: { strategy: "css" as const, value: `#${CSS.escape(el.id)}`, name: "", frame: framePath, logicalTarget, fallback: [], rationale: "Application-declared extractable field" },
+            value: "[REDACTED]" as const
+          };
+        });
       const text: string[] = []; const redacted = new Set<Element>();
       const walker = body.ownerDocument.createTreeWalker(body, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const parent = node.parentElement; if (!parent || ["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"].includes(parent.tagName) || !visible(parent)) continue;
-        const sensitive = parent.closest("[data-sensitive]");
+        const parent = node.parentElement; if (!parent || ["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"].includes(parent.tagName) || !helpers.visible(parent)) continue;
+        const sensitive = parent.closest("[data-sensitive],[data-automation-field]");
         if (sensitive) { if (!redacted.has(sensitive)) { text.push("[REDACTED]"); redacted.add(sensitive); } continue; }
         const value = node.textContent?.replace(/\s+/g, " ").trim(); if (value) text.push(value);
       }
-      return { visibleText: text.join("\n").slice(0, 8000), controls, alerts };
+      return { visibleText: text.join("\n").slice(0, 8000), controls, extractables, alerts };
     }, frame);
   }
 
   async observe(screenshotPath?: string): Promise<Observation> {
     if (screenshotPath) await this.page.screenshot({ path: screenshotPath, fullPage: true });
     const snapshot = await this.snapshot(this.page, []);
-    const childSnapshots: Array<{ path: string[]; url: string; title: string; visibleText: string; controls: Observation["controls"]; alerts: string[] }> = [];
+    const childSnapshots: Array<{ path: string[]; url: string; title: string; visibleText: string; controls: Observation["controls"]; extractables: Observation["extractables"]; alerts: string[] }> = [];
     for (const frame of this.page.frames().filter(candidate => candidate !== this.page.mainFrame())) {
       try { const framePath = await this.framePath(frame); childSnapshots.push({ path: framePath, url: this.sanitizedUrl(frame.url()), title: await frame.title(), ...await this.snapshot(frame, framePath) }); }
       catch { /* A detached or inaccessible frame is omitted from this observation. */ }
     }
     const visibleText = [snapshot.visibleText, ...childSnapshots.map(frame => `[Frame ${frame.path.join(" > ")}]\n${frame.visibleText}`)].filter(Boolean).join("\n").slice(0, 8000);
-    return { url: this.sanitizedUrl(this.page.url()), title: await this.page.title(), visibleText, controls: [...snapshot.controls, ...childSnapshots.flatMap(frame => frame.controls)], alerts: [...snapshot.alerts, ...childSnapshots.flatMap(frame => frame.alerts)], frames: childSnapshots.map(({ path, url: frameUrl, title }) => ({ path, url: frameUrl, title })), screenshotPath };
+    return { url: this.sanitizedUrl(this.page.url()), title: await this.page.title(), visibleText, controls: [...snapshot.controls, ...childSnapshots.flatMap(frame => frame.controls)], extractables: [...snapshot.extractables, ...childSnapshots.flatMap(frame => frame.extractables)], alerts: [...snapshot.alerts, ...childSnapshots.flatMap(frame => frame.alerts)], frames: childSnapshots.map(({ path, url: frameUrl, title }) => ({ path, url: frameUrl, title })), screenshotPath };
   }
 
   async matches(assertion: import("./schema.js").Capability["checkpoint"], inputs: Record<string, unknown>): Promise<boolean> {

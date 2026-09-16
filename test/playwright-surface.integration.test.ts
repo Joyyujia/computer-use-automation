@@ -32,4 +32,11 @@ describe("Playwright surface observation and targeting", () => {
     const observation = await new PlaywrightSurface(page).observe();
     expect(JSON.stringify(observation)).not.toContain("LEAK-CANARY-9191"); expect(observation.alerts).toEqual(["[REDACTED]"]);
   });
+
+  it("exposes stable extraction targets without exposing their values", async () => {
+    await page.setContent(`<table><tr><th>Savings Balance</th><td id="balance" data-automation-field="balance">$9,999.99</td></tr></table>`);
+    const observation = await new PlaywrightSurface(page).observe();
+    expect(observation.extractables).toEqual([{ name: "Savings Balance", target: { strategy: "css", value: "#balance", name: "", frame: [], logicalTarget: "balance", fallback: [], rationale: "Application-declared extractable field" }, value: "[REDACTED]" }]);
+    expect(JSON.stringify(observation)).not.toContain("$9,999.99");
+  });
 });

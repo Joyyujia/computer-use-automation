@@ -1,4 +1,4 @@
-import type { Step } from "./schema.js";
+import type { Locator, Step } from "./schema.js";
 import type { Page } from "@playwright/test";
 
 export type Policy = {
@@ -22,7 +22,7 @@ export class PolicyViolation extends Error {}
 export function enforceUrl(rawUrl: string, policy: Policy): void {
   const url = new URL(rawUrl);
   if (!policy.allowedOrigins.includes(url.origin)) throw new PolicyViolation(`Origin ${url.origin} is not allowlisted`);
-  if (policy.allowedPathPatterns && !policy.allowedPathPatterns.some(pattern => pattern.test(url.pathname))) throw new PolicyViolation(`Route ${url.pathname} is not allowlisted`);
+  if (policy.allowedPathPatterns && !policy.allowedPathPatterns.some(pattern => { pattern.lastIndex = 0; return pattern.test(url.pathname); })) throw new PolicyViolation(`Route ${url.pathname} is not allowlisted`);
 }
 
 export async function enforceBrowserState(page: Page, policy: Policy): Promise<void> {
@@ -34,15 +34,24 @@ export async function enforceBrowserState(page: Page, policy: Policy): Promise<v
   enforceUrl(page.url(), policy);
 }
 
-export function enforcePolicy(step: Step, policy: Policy, confirmed = false): void {
+const locatorTree = (locator: Locator): Locator[] => [locator, ...locator.fallback.flatMap(locatorTree)];
+
+function matchesRiskPattern(locator: Locator, patterns: RegExp[] = []): boolean {
+  const description = `${locator.value} ${locator.name ?? ""} ${locator.logicalTarget ?? ""}`;
+  return patterns.some(pattern => { pattern.lastIndex = 0; return pattern.test(description); });
+}
+
+export function enforcePolicy(step: Step, policy: Policy, confirmed = false, resolvedValue?: string): void {
   if (!policy.allowedActions.includes(step.action)) {
     throw new PolicyViolation(`Action ${step.action} is not allowlisted`);
   }
-  if (step.action === "navigate" && step.value?.source === "literal") {
-    enforceUrl(step.value.value, policy);
+  if (step.action === "navigate") {
+    const navigationUrl = resolvedValue ?? (step.value?.source === "literal" ? step.value.value : undefined);
+    if (!navigationUrl) throw new PolicyViolation("Navigation URL could not be resolved for policy enforcement");
+    enforceUrl(navigationUrl, policy);
   }
-  const target = step.target;
-  const inferredRisky = target ? target.strategy === "coordinates" || policy.riskyTargetPatterns?.some(pattern => pattern.test(`${target.value} ${target.name ?? ""}`)) : false;
+  const targets = step.target ? locatorTree(step.target) : [];
+  const inferredRisky = targets.some(target => target.strategy === "coordinates" || matchesRiskPattern(target, policy.riskyTargetPatterns));
   const irreversible = step.risk === "irreversible" || inferredRisky;
   if (irreversible && policy.irreversible === "block") {
     throw new PolicyViolation("Irreversible actions are blocked by policy");

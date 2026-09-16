@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "runId": "81d7ddde-78f0-4030-ad06-ca999e875fb7",
+  "outputs": {
+    "balance": "[REDACTED]"
+  },
+  "evidencePath": "[WORKSPACE]/evidence/samples/scripted-discovery/b83ec935-bd6e-4ff9-aaaf-2429a766e4d3/validation/81d7ddde-78f0-4030-ad06-ca999e875fb7"
+}

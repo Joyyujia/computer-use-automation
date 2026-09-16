@@ -8,7 +8,7 @@
 <tr><td></td><td><button type="submit">Find Member</button></td></tr></table></form>
 <div id="loading" class="loading hidden" role="status">Loading member...</div><div id="message" class="error" role="alert"></div>
 <section id="detail" class="hidden" aria-label="Member Detail"><h2>Member Detail</h2><table border="1">
-<tr><th>Member Number</th><td id="detail-member-id" data-sensitive></td></tr><tr><th>Name</th><td id="member-name" data-sensitive></td></tr><tr><th>Savings Balance</th><td id="balance" data-sensitive></td></tr></table></section>
+<tr><th>Member Number</th><td id="detail-member-id" data-sensitive data-automation-field="memberId"></td></tr><tr><th>Name</th><td id="member-name" data-sensitive data-automation-field="memberName"></td></tr><tr><th>Savings Balance</th><td id="balance" data-sensitive data-automation-field="balance"></td></tr></table></section>
 </div><script>
 const members={"12345":{name:"Jamie Rivera",balance:"$2,418.73"},"67890":{name:"Morgan Chen",balance:"$987.65"}};
 const params=new URLSearchParams(location.search);const delayMs=Math.max(0,Number(params.get('delayMs')||0));let requestGeneration=0;

@@ -1,0 +1,25 @@
+{
+  "url": "http://127.0.0.1:57923/",
+  "title": "Member Servicing Console",
+  "visibleText": "NORTHSTAR CORE :: MEMBER SERVICING\nMember Number\nFind Member",
+  "controls": [
+    {
+      "role": "textbox",
+      "name": "Member Number",
+      "tag": "input",
+      "disabled": false,
+      "frame": []
+    },
+    {
+      "role": "button",
+      "name": "Find Member",
+      "tag": "button",
+      "type": "submit",
+      "disabled": false,
+      "frame": []
+    }
+  ],
+  "extractables": [],
+  "alerts": [],
+  "frames": []
+}

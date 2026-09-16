@@ -1,0 +1,23 @@
+{
+  "runId": "b83ec935-bd6e-4ff9-aaaf-2429a766e4d3",
+  "mode": "discovery",
+  "goal": "Look up member [INPUT:memberId] and read their savings balance",
+  "model": "scripted-test-fixture",
+  "modelBacked": false,
+  "policy": {
+    "allowedOrigins": [
+      "http://127.0.0.1:57923"
+    ],
+    "allowedActions": [
+      "navigate",
+      "click",
+      "fill",
+      "select",
+      "extract",
+      "assert"
+    ],
+    "irreversible": "confirm"
+  },
+  "profile": "member.lookup-savings-balance",
+  "startedAt": "2026-09-16T18:14:50.786Z"
+}

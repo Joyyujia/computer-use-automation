@@ -18,6 +18,7 @@ beforeAll(async () => {
   app.get("/popup-child", (_req, res) => res.send(`<p>Unexpected popup</p>`));
   app.get("/dialog", (_req, res) => res.send(`<button id="open" onclick="alert('sensitive application text')">Open dialog</button><div id="done">Done</div>`));
   app.get("/human-complete", (_req, res) => res.send(`<div id="blocker">Human required</div><button id="finish" onclick="document.querySelector('#count').textContent=String(Number(document.querySelector('#count').textContent)+1);document.querySelector('#blocker')?.remove()">Finish once</button><div id="count">0</div>`));
+  app.get("/execution-failure", (_req, res) => res.send(`<button id="actual-finish" onclick="document.querySelector('#done').hidden=false;document.querySelector('#count').textContent=String(Number(document.querySelector('#count').textContent)+1)">Finish</button><div id="done" hidden>Done</div><div id="count">0</div>`));
   app.use(express.static("public")); server = createServer(app); await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); if (!address || typeof address === "string") throw new Error("No port"); origin = `http://127.0.0.1:${address.port}`;
 });
@@ -47,7 +48,27 @@ describe("replay failure and recovery behavior", () => {
   it("reports target_not_found with a screenshot", async () => {
     const flow = base([navigate(origin), { id: "missing", action: "click", target: loc("#absent"), risk: "safe", timeoutMs: 100, retries: 0 }], visible("body"));
     const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "missing-")) }); expect(result.status).toBe("failure");
-    if (result.status === "failure") { expect(result.error.category).toBe("target_not_found"); expect(await readFile(result.error.evidencePath!)).toBeTruthy(); }
+    if (result.status === "failure") { expect(result.error.category).toBe("target_not_found"); expect(result.error.recoverable).toBe(true); expect(await readFile(result.error.evidencePath!)).toBeTruthy(); }
+  });
+
+  it("routes an execution failure to a human and does not repeat an uncertain click", async () => {
+    const one = { kind: "text" as const, locator: loc("#count"), expected: { source: "literal" as const, value: "1" }, timeoutMs: 300 };
+    const flow = base([navigate(`${origin}/execution-failure`), { id: "finish", action: "click", target: loc("#stale-finish"), risk: "safe", timeoutMs: 100, retries: 0 }], one);
+    let handoffs = 0;
+    const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "failure-handoff-")), onIntervention: async context => { handoffs += 1; expect(context.resume).toBe("verify_then_continue"); await context.page.locator("#actual-finish").click(); return { interventionId: "repair-1" }; } });
+    expect(result.status).toBe("success"); expect(handoffs).toBe(1);
+  });
+
+  it("allows a human to repair a safe target before one bounded retry", async () => {
+    const flow = base([navigate(`${origin}/execution-failure`), { id: "fill-late", action: "fill", target: loc("#late-input"), value: { source: "literal", value: "ready" }, risk: "safe", timeoutMs: 100, retries: 0 }], visible("#late-input"));
+    const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "failure-retry-")), onIntervention: async context => { expect(context.resume).toBe("retry_step"); await context.page.evaluate(() => { const input = document.createElement("input"); input.id = "late-input"; document.body.append(input); }); return { interventionId: "repair-2" }; } });
+    expect(result.status).toBe("success");
+  });
+
+  it("hands off when no competing terminal state appears before the deadline", async () => {
+    const flow = base([navigate(`${origin}/execution-failure`), { id: "read-count", action: "extract", target: loc("#count"), outputKey: "count", risk: "safe", timeoutMs: 100, retries: 0 }], visible("#done"), { outputs: { count: { type: "string", description: "Final count", sensitive: false } } });
+    const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "timeout-handoff-")), onIntervention: async context => { expect(context.reason).toContain("TERMINAL_TIMEOUT"); await context.page.locator("#actual-finish").click(); return { interventionId: "repair-timeout" }; } });
+    expect(result.status).toBe("success"); if (result.status === "success") expect(result.outputs.count).toBe("1");
   });
 
   it("reports checkpoint_failed distinctly", async () => {

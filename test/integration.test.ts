@@ -29,7 +29,6 @@ describe("vertical slice", () => {
     const root = await mkdtemp(path.join(tmpdir(), "cua-discovery-"));
     const locator = (strategy: "label" | "role" | "css" | "text", value: string, name?: string) => ({ strategy, value, name, fallback: [], rationale: "Stable fixture locator" });
     const model = new ScriptedModelAdapter([
-      { kind: "navigate", url: origin, rationale: "Open target" },
       { kind: "fill", target: locator("label", "Member Number"), inputKey: "memberId", rationale: "Supply member" },
       { kind: "click", target: locator("role", "button", "Find Member"), rationale: "Submit lookup" },
       { kind: "extract", target: locator("css", "#balance"), outputKey: "balance", rationale: "Read balance" },
@@ -42,6 +41,9 @@ describe("vertical slice", () => {
       expect(result.artifact.businessOutcomes.map(outcome => outcome.code)).toContain("member_not_found");
       expect(result.artifact.recoveries.map(recovery => recovery.id)).toContain("dismiss-service-notice");
       expect(result.artifact.interventions.map(intervention => intervention.code)).toContain("session_expired");
+      expect(model.contexts[0]?.targetUrl).toBe(origin); expect(model.contexts[0]?.observation.url).toBe(`${origin}/`);
+      const extractionObservation = model.contexts.find(context => context.observation.extractables.some(field => field.target.value === "#balance"));
+      expect(extractionObservation?.observation.extractables).toContainEqual(expect.objectContaining({ name: "Savings Balance", value: "[REDACTED]", target: expect.objectContaining({ value: "#balance", logicalTarget: "balance" }) }));
       expect(await readFile(path.join(result.evidencePath, "manifest.json"), "utf8")).not.toContain("12345");
       const observations = await readFile(path.join(result.evidencePath, "observations", "003.json"), "utf8"); expect(observations).toContain("[PRESENT]"); expect(observations).not.toContain('"value": "12345"');
       expect(JSON.stringify(model.contexts)).not.toContain("12345"); expect(JSON.stringify(model.contexts)).not.toContain("$2,418.73");
@@ -67,7 +69,7 @@ describe("vertical slice", () => {
     const exhausted = await discover({ goal: "never finishes", entrypoint: origin, inputs: {}, model: new ScriptedModelAdapter([{ kind: "navigate", url: origin, rationale: "open" }]), policy: policy(), maxSteps: 1, evidenceRoot: path.join(root, "limit") });
     expect(exhausted.status).toBe("failure"); if (exhausted.status === "failure") expect(exhausted.message).toContain("step limit");
     const missing = { strategy: "css" as const, value: "#missing", fallback: [], rationale: "fixture" };
-    const checkpoint = await discover({ goal: "bad checkpoint", entrypoint: origin, inputs: {}, model: new ScriptedModelAdapter([{ kind: "navigate", url: origin, rationale: "open" }, { kind: "complete", checkpoint: { kind: "visible", locator: missing, timeoutMs: 100 }, businessOutcomes: [], rationale: "incorrect" }]), policy: policy(), evidenceRoot: path.join(root, "checkpoint") });
+    const checkpoint = await discover({ goal: "bad checkpoint", entrypoint: origin, inputs: {}, model: new ScriptedModelAdapter([{ kind: "complete", checkpoint: { kind: "visible", locator: missing, timeoutMs: 100 }, businessOutcomes: [], rationale: "incorrect" }]), policy: policy(), evidenceRoot: path.join(root, "checkpoint") });
     expect(checkpoint.status).toBe("failure"); if (checkpoint.status === "failure") expect(checkpoint.message).toContain("success contract");
   }, 20_000);
 
@@ -88,6 +90,25 @@ describe("vertical slice", () => {
     const result = await discover({ goal: "typed input", entrypoint: origin, inputDefinitions: { count: { type: "number", description: "Requested count", sensitive: false } }, inputs: { count: "wrong" }, model: { name: "must-not-run", decide: async () => { calls += 1; throw new Error("should not run"); } }, policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "cua-input-validation-")) });
     expect(result.status).toBe("failure"); if (result.status === "failure") expect(result.message).toContain("must be number"); expect(calls).toBe(0);
   });
+
+  it("does not compile a failed discovery action into the artifact", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "cua-failed-action-"));
+    const locator = (strategy: "label" | "role" | "css" | "text", value: string, name?: string) => ({ strategy, value, name, fallback: [], rationale: "test locator" });
+    const model = new ScriptedModelAdapter([
+      { kind: "click", target: locator("css", "#does-not-exist"), rationale: "stale observation" },
+      { kind: "fill", target: locator("label", "Member Number"), inputKey: "memberId", rationale: "Supply member" },
+      { kind: "click", target: locator("role", "button", "Find Member"), rationale: "Submit lookup" },
+      { kind: "extract", target: locator("css", "#balance"), outputKey: "balance", rationale: "Read balance" },
+      { kind: "complete", checkpoint: { kind: "text", locator: locator("css", "#detail-member-id"), expected: { source: "input", key: "memberId" }, timeoutMs: 5000 }, businessOutcomes: [], rationale: "Goal met" }
+    ]);
+    let handoffs = 0;
+    const result = await discover({ goal: "Look up a balance", entrypoint: origin, inputs: { memberId: "12345" }, model, policy: policy(), evidenceRoot: path.join(root, "evidence"), artifactRoot: path.join(root, "artifacts"), onIntervention: async () => { handoffs += 1; return { interventionId: "handled-stale-target" }; } });
+    expect(result.status).toBe("success"); expect(handoffs).toBe(1);
+    if (result.status === "success") {
+      expect(JSON.stringify(result.artifact)).not.toContain("#does-not-exist");
+      expect(result.artifact.steps.map(step => step.action)).toEqual(["navigate", "fill", "click", "extract"]);
+    }
+  }, 20_000);
 
   it("replays success and distinguishes not-found as a business outcome", async () => {
     const artifact = structuredClone(artifactFixture); artifact.surface.entrypoint = origin; artifact.steps[0].value = { source: "literal", value: origin };

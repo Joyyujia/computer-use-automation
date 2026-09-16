@@ -6,14 +6,16 @@ The included target is a fictional legacy-style member-servicing application. Ne
 
 ## What is implemented
 
-- Genuine OpenAI-powered observe -> decide -> act discovery with strict structured decisions
+- Genuine OpenAI-powered observe -> decide -> act discovery with an API-compatible strict object response envelope
+- Configured target navigation before the first model call, plus redacted, executable extraction targets in every observation
 - Versioned, reviewable, parameterized capability artifacts
+- Successful-action-only compilation followed by fresh-browser deterministic validation before artifact persistence
 - Deterministic Playwright replay with bounded competing-state waits and no model fallback
 - Structured success, business-outcome, intervention, and failure results
 - Reviewed success/outcome/recovery contracts kept distinct from model-learned steps
-- Origin/route/action allowlists, popup/redirect checks, and trusted risk inference
+- Origin/route/action allowlists, popup/redirect checks, resolved navigation checks, and trusted risk inference across locator fallbacks
 - Redaction before persistence, sanitized DOM observations, and sensitive-literal rejection
-- Same-session human handoff with exclusive control, resume, and abort
+- Same-session human handoff for configured interventions and unexpected execution failures, with exclusive control, resume, and abort
 - Browser acceptance tests for two-member reuse, delayed outcomes, stale state, recovery, ambiguity, frames, leakage, and handoff
 
 ## Setup
@@ -42,7 +44,7 @@ In another terminal, export the values from `.env` and run genuine discovery:
 npm run discover -- "Look up member 12345 and read their savings balance"
 ```
 
-Discovery writes a draft capability under `artifacts/generated/` and a redacted evidence bundle under `evidence/runs/<run-id>/`. It does not silently promote the artifact to approved.
+Discovery opens and policy-checks the configured entrypoint before the model receives its first observation. It writes a draft capability under `artifacts/generated/` only after replaying that exact generated artifact in a fresh browser and matching its typed outputs. Failed actions are retained in evidence/history but never compiled. It does not silently promote the artifact to approved.
 
 The live adapter records provider response IDs and marks provenance as live. The scripted adapter used in tests cannot produce live provenance. A real API-backed run is still required for submission; tests are not a substitute.
 
@@ -93,11 +95,20 @@ The suite covers domain validation, policy and risk branches, artifact compilati
 
 Browser integration tests open loopback ports and launch Chromium. They use a scripted model adapter solely for repeatability; fixture runs are explicitly marked `createdFromLiveRun: false` and are not represented as the assignment's genuine model evidence.
 
+Generate the reviewed mechanics evidence set with:
+
+```bash
+npm run evidence:samples
+```
+
+The tracked [`evidence/samples/index.json`](evidence/samples/index.json) is explicitly labeled `scripted_non_live_evidence`. It proves the evidence format and local mechanics but does not replace the required API-backed run.
+
 ## Architecture map
 
 - `src/core/schema.ts` - capability and result contracts
 - `src/core/discovery.ts` - bounded model-driven discovery loop
 - `src/core/model-adapter.ts` - live OpenAI and scripted test adapters
+- `src/core/discovery-schema.ts` - strict API envelope and validated internal decision union
 - `src/core/artifact-compiler.ts` - transcript-to-capability compilation
 - `src/core/capability-profile.ts` - reviewed completion, outcome, recovery, and intervention contract
 - `src/core/replay.ts` - deterministic execution, outcomes, recovery, and checkpoints
@@ -122,6 +133,6 @@ Ad-hoc evidence under `evidence/runs/` and generated artifacts are ignored by de
 3. A `member_not_found` replay.
 4. A handoff run showing pause, human actions, and resume.
 
-DOM observations include rendered text and semantic controls, not raw HTML. Elements marked `data-sensitive`, input values, declared sensitive invocation values, and URL query values are redacted before model calls or persistence. Failure evidence is sanitized JSON rather than a screenshot. Operator screenshots are live transport and are not saved by the evidence writer.
+DOM observations include rendered text, semantic controls, and app-declared stable extraction targets, not raw HTML. Extraction values, elements marked `data-sensitive`, input values, declared sensitive invocation values, and URL query values are redacted before model calls or persistence. Failure evidence is sanitized JSON rather than a screenshot. Operator screenshots are live transport and are not saved by the evidence writer.
 
 Do not commit `.env`, API keys, browser storage state, raw sensitive invocation data, or unreviewed live screenshots.

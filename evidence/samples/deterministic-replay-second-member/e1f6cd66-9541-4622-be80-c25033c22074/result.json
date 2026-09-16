@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "runId": "e1f6cd66-9541-4622-be80-c25033c22074",
+  "outputs": {
+    "balance": "[REDACTED]"
+  },
+  "evidencePath": "[WORKSPACE]/evidence/samples/deterministic-replay-second-member/e1f6cd66-9541-4622-be80-c25033c22074"
+}

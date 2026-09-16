@@ -1,0 +1,23 @@
+{
+  "classification": "scripted_non_live_evidence",
+  "warning": "These fixtures demonstrate mechanics only and do not satisfy the required genuine API-backed discovery run.",
+  "discovery": {
+    "status": "success",
+    "evidencePath": "evidence/samples/scripted-discovery/b83ec935-bd6e-4ff9-aaaf-2429a766e4d3",
+    "artifactPath": "evidence/samples/artifacts/member.lookup-savings-balance.b83ec935-bd6e-4ff9-aaaf-2429a766e4d3.json"
+  },
+  "secondMemberReplay": {
+    "status": "success",
+    "evidencePath": "evidence/samples/deterministic-replay-second-member/e1f6cd66-9541-4622-be80-c25033c22074"
+  },
+  "notFoundReplay": {
+    "status": "business_outcome",
+    "code": "member_not_found",
+    "evidencePath": "evidence/samples/deterministic-replay-not-found/3321707f-8129-4b2b-9f72-6de1660b56b4"
+  },
+  "sameSessionHandoff": {
+    "status": "success",
+    "evidencePath": "evidence/samples/same-session-handoff/a17fa756-1e02-4f23-82ac-cbb977ace3b6",
+    "interventionId": "cdc6ee58-0427-470d-8f72-a85c8c5f76f7"
+  }
+}

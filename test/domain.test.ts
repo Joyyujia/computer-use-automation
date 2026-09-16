@@ -67,7 +67,7 @@ describe("domain validation", () => {
     expect(discoveryDecisionSchema.safeParse({ kind: "fill", target: locator, rationale: "missing key" }).success).toBe(false);
   });
   it("validates bounded surface observations", () => {
-    const parsed = observationSchema.parse({ url: "about:blank", title: "", visibleText: "Ready", controls: [{ role: "button", name: "Go", tag: "button", disabled: false }], alerts: [] });
+    const parsed = observationSchema.parse({ url: "about:blank", title: "", visibleText: "Ready", controls: [{ role: "button", name: "Go", tag: "button", disabled: false }], extractables: [], alerts: [] });
     expect(parsed.controls[0].name).toBe("Go"); expect(observationSchema.safeParse({ controls: "invalid" }).success).toBe(false);
   });
 });

@@ -17,6 +17,14 @@ describe("policy enforcement", () => {
     const risky = step({ target: { strategy: "text", value: "Confirm transfer", fallback: [], rationale: "model called this safe" }, risk: "safe" });
     expect(() => enforcePolicy(risky, { ...policy, irreversible: "block", riskyTargetPatterns: [/confirm transfer/i] })).toThrow(/blocked/);
   });
+  it("does not allow a risky fallback to hide behind a safe primary locator", () => {
+    const riskyFallback = step({ target: { strategy: "text", value: "Continue", logicalTarget: "submit", fallback: [{ strategy: "text", value: "Confirm transfer", logicalTarget: "submit", fallback: [], rationale: "fallback" }], rationale: "primary" } });
+    expect(() => enforcePolicy(riskyFallback, { ...policy, irreversible: "block", riskyTargetPatterns: [/confirm transfer/i] })).toThrow(/blocked/);
+  });
+  it("enforces policy against a resolved input-sourced navigation URL", () => {
+    const navigation = step({ action: "navigate", value: { source: "input", key: "destination" }, target: undefined });
+    expect(() => enforcePolicy(navigation, policy, false, "https://evil.example/path")).toThrow(/Origin/);
+  });
   it("treats coordinate actions as risky even when the artifact calls them safe", () => {
     const coordinate = step({ target: { strategy: "coordinates", value: "10,10", fallback: [], rationale: "last resort" }, risk: "safe" });
     expect(() => enforcePolicy(coordinate, policy)).toThrow(/confirmation/);
