@@ -11,8 +11,8 @@ describe("model adapters", () => {
   });
 
   it("sends a non-stored strict-schema Responses request", async () => {
-    const mock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output: [{ content: [{ type: "output_text", text: JSON.stringify(decision) }] }], usage: { total_tokens: 12 } }), { status: 200 })); vi.stubGlobal("fetch", mock);
-    const result = await new OpenAIModelAdapter("test-key", "test-model").decide(context); expect(result.decision).toEqual(decision); expect(result.usage?.total_tokens).toBe(12);
+    const mock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "resp_test", output: [{ content: [{ type: "output_text", text: JSON.stringify(decision) }] }], usage: { total_tokens: 12 } }), { status: 200 })); vi.stubGlobal("fetch", mock);
+    const adapter = new OpenAIModelAdapter("test-key", "test-model"); const result = await adapter.decide(context); expect(result.decision).toEqual(decision); expect(result.usage?.total_tokens).toBe(12); expect(result.responseId).toBe("resp_test"); expect(adapter.isLive).toBe(true);
     const [url, init] = mock.mock.calls[0]; const body = JSON.parse(init.body); expect(url).toBe("https://api.openai.com/v1/responses"); expect(body.store).toBe(false); expect(body.text.format.strict).toBe(true); expect(init.headers.authorization).toBe("Bearer test-key");
   });
 

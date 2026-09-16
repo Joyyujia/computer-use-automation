@@ -6,7 +6,8 @@ export const observedControlSchema = z.object({
   tag: z.string(),
   type: z.string().optional(),
   disabled: z.boolean(),
-  value: z.string().optional()
+  value: z.string().optional(),
+  frame: z.array(z.string()).optional()
 });
 
 export const observationSchema = z.object({
@@ -15,6 +16,7 @@ export const observationSchema = z.object({
   visibleText: z.string(),
   controls: z.array(observedControlSchema),
   alerts: z.array(z.string()),
+  frames: z.array(z.object({ path: z.array(z.string()), url: z.string(), title: z.string() })).optional(),
   screenshotPath: z.string().optional()
 });
 

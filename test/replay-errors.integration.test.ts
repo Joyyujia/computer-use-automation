@@ -14,6 +14,10 @@ beforeAll(async () => {
   const app = express();
   app.get("/recovery", (_req, res) => res.send(`<button id="dismiss" onclick="this.remove();document.querySelector('#notice').remove()">Dismiss</button><div id="notice">Session notice</div><button id="finish" onclick="document.querySelector('#done').hidden=false">Finish</button><div id="done" hidden>Done</div>`));
   app.get("/irreversible", (_req, res) => res.send(`<button id="confirm" onclick="document.querySelector('#done').hidden=false">Confirm</button><div id="done" hidden>Done</div>`));
+  app.get("/popup", (_req, res) => res.send(`<button id="open" onclick="window.open('/popup-child')">Open helper</button><div id="done">Done</div>`));
+  app.get("/popup-child", (_req, res) => res.send(`<p>Unexpected popup</p>`));
+  app.get("/dialog", (_req, res) => res.send(`<button id="open" onclick="alert('sensitive application text')">Open dialog</button><div id="done">Done</div>`));
+  app.get("/human-complete", (_req, res) => res.send(`<div id="blocker">Human required</div><button id="finish" onclick="document.querySelector('#count').textContent=String(Number(document.querySelector('#count').textContent)+1);document.querySelector('#blocker')?.remove()">Finish once</button><div id="count">0</div>`));
   app.use(express.static("public")); server = createServer(app); await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); if (!address || typeof address === "string") throw new Error("No port"); origin = `http://127.0.0.1:${address.port}`;
 });
@@ -25,11 +29,13 @@ const base = (steps: Step[], checkpoint: Capability["checkpoint"], overrides: Pa
   businessOutcomes: [], recoveries: [], approval: "draft", createdAt: new Date().toISOString(), ...overrides
 });
 const navigate = (url: string): Step => ({ id: "open", action: "navigate", value: { source: "literal", value: url }, risk: "safe", timeoutMs: 1000, retries: 0 });
-const visible = (selector: string, expected = "Done"): Capability["checkpoint"] => ({ kind: "visible", locator: loc(selector), expected: { source: "literal", value: expected }, timeoutMs: 300 });
+const visible = (selector: string, _expected = "Done"): Capability["checkpoint"] => ({ kind: "visible", locator: loc(selector), timeoutMs: 300 });
 
 describe("replay failure and recovery behavior", () => {
   it("uses a bounded locator fallback", async () => {
-    const flow = base([navigate(origin), { id: "fill", action: "fill", target: loc("#missing", [{ strategy: "label", value: "Member Number", fallback: [], rationale: "fallback label" }]), value: { source: "literal", value: "12345" }, risk: "safe", timeoutMs: 500, retries: 0 }], visible("input[name=memberNumber]", "ignored"));
+    const fallback = { strategy: "label" as const, value: "Member Number", logicalTarget: "member-number-input", fallback: [], rationale: "fallback label" };
+    const primary = { ...loc("#missing", [fallback]), logicalTarget: "member-number-input" };
+    const flow = base([navigate(origin), { id: "fill", action: "fill", target: primary, value: { source: "literal", value: "12345" }, risk: "safe", timeoutMs: 500, retries: 0 }], visible("input[name=memberNumber]", "ignored"));
     expect((await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "fallback-")) })).status).toBe("success");
   });
 
@@ -63,6 +69,31 @@ describe("replay failure and recovery behavior", () => {
   it("resumes an irreversible action after a scoped intervention", async () => {
     const flow = base([navigate(`${origin}/irreversible`), { id: "confirm", action: "click", target: loc("#confirm"), risk: "irreversible", timeoutMs: 500, retries: 0 }], visible("#done"));
     const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "approved-")), onIntervention: async context => { expect(context.step.id).toBe("confirm"); return { interventionId: "human-1" }; } }); expect(result.status).toBe("success");
+  });
+
+  it("requires approval when trusted rules identify risk despite a safe artifact label", async () => {
+    const flow = base([navigate(`${origin}/irreversible`), { id: "confirm", action: "click", target: loc("#confirm"), risk: "safe", timeoutMs: 500, retries: 0 }], visible("#done"));
+    const result = await replay(flow, {}, { policy: { ...policy(), riskyTargetPatterns: [/confirm/i] }, evidenceRoot: await mkdtemp(path.join(tmpdir(), "inferred-risk-")) });
+    expect(result.status).toBe("intervention_required");
+  });
+
+  it("closes and reports an unexpected popup at the shared policy boundary", async () => {
+    const flow = base([navigate(`${origin}/popup`), { id: "open-popup", action: "click", target: loc("#open"), risk: "safe", timeoutMs: 500, retries: 0 }], visible("#done"));
+    const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "popup-")) });
+    expect(result.status).toBe("failure"); if (result.status === "failure") expect(result.error.category).toBe("policy_denied");
+  });
+
+  it("dismisses and classifies an unexpected browser dialog without persisting its text", async () => {
+    const flow = base([navigate(`${origin}/dialog`), { id: "open-dialog", action: "click", target: loc("#open"), risk: "safe", timeoutMs: 500, retries: 0 }], visible("#done"));
+    const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "dialog-")) });
+    expect(result.status).toBe("failure"); if (result.status === "failure") { expect(result.error.category).toBe("unexpected_dialog"); expect(await readFile(path.join(result.evidencePath, "result.json"), "utf8")).not.toContain("sensitive application text"); }
+  });
+
+  it("verifies and skips a step that the human already completed", async () => {
+    const one = { kind: "text" as const, locator: loc("#count"), expected: { source: "literal" as const, value: "1" }, timeoutMs: 300 };
+    const flow = base([navigate(`${origin}/human-complete`), { id: "finish", action: "click", target: loc("#finish"), risk: "safe", timeoutMs: 500, retries: 0 }], one, { interventions: [{ code: "human_completed", message: "Human must finish", assertion: { kind: "visible", locator: loc("#blocker"), timeoutMs: 100 }, resume: "verify_then_continue", resumeAssertion: one }] });
+    const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "human-complete-")), onIntervention: async context => { await context.page.locator("#finish").click(); return { interventionId: "human-completed" }; } });
+    expect(result.status).toBe("success"); expect(await readFile(path.join(result.evidencePath, "events.jsonl"), "utf8")).toContain("step_completed_by_human");
   });
 
   it("enforces declared input types before launching", async () => {

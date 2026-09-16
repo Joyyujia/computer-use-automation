@@ -8,13 +8,13 @@ The included target is a fictional legacy-style member-servicing application. Ne
 
 - Genuine OpenAI-powered observe -> decide -> act discovery with strict structured decisions
 - Versioned, reviewable, parameterized capability artifacts
-- Deterministic Playwright replay with bounded retries and checkpoints
+- Deterministic Playwright replay with bounded competing-state waits and no model fallback
 - Structured success, business-outcome, intervention, and failure results
-- Origin/action allowlists and step-scoped approval for irreversible actions
-- Schema-aware parameterization and recursive evidence redaction
-- Structured run manifests, JSONL events, observations, screenshots, and results
-- Same-session human handoff with an explicit control lease and browser operator console
-- Unit and browser integration tests for discovery, replay, not-found handling, and handoff
+- Reviewed success/outcome/recovery contracts kept distinct from model-learned steps
+- Origin/route/action allowlists, popup/redirect checks, and trusted risk inference
+- Redaction before persistence, sanitized DOM observations, and sensitive-literal rejection
+- Same-session human handoff with exclusive control, resume, and abort
+- Browser acceptance tests for two-member reuse, delayed outcomes, stale state, recovery, ambiguity, frames, leakage, and handoff
 
 ## Setup
 
@@ -44,10 +44,13 @@ npm run discover -- "Look up member 12345 and read their savings balance"
 
 Discovery writes a draft capability under `artifacts/generated/` and a redacted evidence bundle under `evidence/runs/<run-id>/`. It does not silently promote the artifact to approved.
 
+The live adapter records provider response IDs and marks provenance as live. The scripted adapter used in tests cannot produce live provenance. A real API-backed run is still required for submission; tests are not a substitute.
+
 Replay a reviewed artifact without any model call:
 
 ```bash
 npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"12345"}'
+npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"67890"}'
 ```
 
 Exercise the expected business outcome:
@@ -56,17 +59,27 @@ Exercise the expected business outcome:
 npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"99999"}'
 ```
 
-The second invocation returns `status: "business_outcome"` and `code: "member_not_found"` rather than a technical failure.
+The unknown-member invocation returns `status: "business_outcome"` and `code: "member_not_found"` rather than a technical failure.
+
+The fixture supports controlled states without adding hidden shortcuts to the automation engine:
+
+```bash
+CUA_TARGET_URL='http://127.0.0.1:4173/?delayMs=800' npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"67890"}'
+CUA_TARGET_URL='http://127.0.0.1:4173/?notice=1' npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"12345"}'
+CUA_TARGET_URL='http://127.0.0.1:4173/?hang=1' npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"12345"}'
+```
+
+`CUA_TARGET_URL` is a CLI entrypoint overlay for fixture and tenant routing; the replay engine still executes the validated artifact with no model decisions.
 
 ## Human handoff demo
 
-With the legacy application still running:
+The normal replay command can trigger the configured `session_expired` intervention:
 
 ```bash
-CUA_HEADLESS=false npm run handoff
+CUA_HEADLESS=false CUA_TARGET_URL='http://127.0.0.1:4173/?expired=1' npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"12345"}'
 ```
 
-Open `http://127.0.0.1:4174`, take control, click or type into the live browser, and return control. The console operates the same Playwright page held by the automation session. The control lease prevents human and automation input at the same time, and human actions are recorded with sensitive typed content redacted.
+Open `http://127.0.0.1:4174`, take control, click **Restore session** in the live page, then return control. Replay revalidates that the expiry state cleared and continues in the same Playwright context. The control lease rejects automation input while the human owns the session. The operator can also abort; typed values are recorded only as `Typed redacted text`.
 
 ## Tests
 
@@ -76,7 +89,7 @@ npm test
 npm run test:coverage
 ```
 
-The suite covers domain validation, policy and risk branches, artifact compilation, model-adapter contracts, state transitions, redaction, evidence files, deterministic outcomes and failures, bounded recovery, discovery stopping conditions, and same-session handoff. Coverage thresholds fail the build below 80% statements/lines/functions or 70% branches. The current core coverage is over 95% statements and lines.
+The suite covers domain validation, policy and risk branches, artifact compilation, model-adapter contracts, state transitions, redaction, deterministic outcomes and failures, bounded recovery, discovery stopping conditions, frame targeting, popup/dialog handling, leakage canaries, and same-session handoff. Coverage thresholds fail the build below 80% statements/lines/functions or 70% branches.
 
 Browser integration tests open loopback ports and launch Chromium. They use a scripted model adapter solely for repeatability; fixture runs are explicitly marked `createdFromLiveRun: false` and are not represented as the assignment's genuine model evidence.
 
@@ -86,6 +99,7 @@ Browser integration tests open loopback ports and launch Chromium. They use a sc
 - `src/core/discovery.ts` - bounded model-driven discovery loop
 - `src/core/model-adapter.ts` - live OpenAI and scripted test adapters
 - `src/core/artifact-compiler.ts` - transcript-to-capability compilation
+- `src/core/capability-profile.ts` - reviewed completion, outcome, recovery, and intervention contract
 - `src/core/replay.ts` - deterministic execution, outcomes, recovery, and checkpoints
 - `src/core/playwright-surface.ts` - surface observation and actions
 - `src/core/policy.ts` - action, origin, and risk enforcement
@@ -95,13 +109,19 @@ Browser integration tests open loopback ports and launch Chromium. They use a sc
 - `src/core/operator-server.ts` - minimal same-session operator console
 - `test/integration.test.ts` - complete browser-level vertical-slice checks
 
+## Learned versus configured
+
+The LLM learns the ordered navigation, fill, click, and extraction targets. The reviewed `lookupBalanceProfile` supplies the required identity-equality checkpoint, detail visibility, output definition, `member_not_found` detector, service-notice recovery, and session-expiry intervention. Model-proposed checkpoints and error detectors are retained as discovery signals but do not replace this reviewed runtime contract.
+
 ## Evidence policy
 
 Ad-hoc evidence under `evidence/runs/` and generated artifacts are ignored by default. Before submission, perform a genuine API-backed discovery run, inspect its contents for sensitive data, then deliberately commit:
 
-1. The genuine discovery evidence and resulting artifact.
+1. The genuine discovery evidence and resulting artifact, including provider response IDs and `createdFromLiveRun: true`.
 2. A successful deterministic replay.
 3. A `member_not_found` replay.
 4. A handoff run showing pause, human actions, and resume.
 
-Do not commit `.env`, API keys, browser storage state, or raw sensitive invocation data.
+DOM observations include rendered text and semantic controls, not raw HTML. Elements marked `data-sensitive`, input values, declared sensitive invocation values, and URL query values are redacted before model calls or persistence. Failure evidence is sanitized JSON rather than a screenshot. Operator screenshots are live transport and are not saved by the evidence writer.
+
+Do not commit `.env`, API keys, browser storage state, raw sensitive invocation data, or unreviewed live screenshots.

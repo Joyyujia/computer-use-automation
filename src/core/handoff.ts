@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 export type ControlOwner = "automation" | "human";
 export type Intervention = {
   id: string; runId: string; sessionId?: string; stepId?: string; reason: string; evidencePath?: string;
+  capabilityId?: string; goal?: string; context?: Record<string, unknown>;
   owner: ControlOwner; state: "requested" | "in_progress" | "resumed" | "aborted";
   humanActions: Array<{ at: string; description: string }>;
 };
@@ -27,6 +28,10 @@ export class HandoffCoordinator {
   resume(id: string): Intervention {
     const item = this.require(id); if (item.state !== "in_progress" || item.owner !== "human") throw new Error("Intervention is not under human control");
     return this.update(id, { owner: "automation", state: "resumed" });
+  }
+  abort(id: string): Intervention {
+    const item = this.require(id); if (["resumed", "aborted"].includes(item.state)) throw new Error("Intervention is already complete");
+    return this.update(id, { owner: "automation", state: "aborted" });
   }
   get(id: string): Intervention { return this.require(id); }
   list(): Intervention[] { return [...this.requests.values()]; }

@@ -3,9 +3,9 @@ import { EvidenceWriter } from "./evidence.js";
 import { HandoffCoordinator, type Intervention } from "./handoff.js";
 import { SessionRegistry } from "./session-registry.js";
 
-export async function requestAndWaitForHuman(options: { registry: SessionRegistry; handoffs: HandoffCoordinator; sessionId: string; reason: string; stepId?: string; evidence?: EvidenceWriter; timeoutMs?: number }): Promise<Intervention> {
-  const runId = randomUUID();
-  const request = options.handoffs.request({ runId, sessionId: options.sessionId, stepId: options.stepId, reason: options.reason, evidencePath: options.evidence?.directory });
+export async function requestAndWaitForHuman(options: { runId?: string; registry: SessionRegistry; handoffs: HandoffCoordinator; sessionId: string; reason: string; stepId?: string; capabilityId?: string; goal?: string; context?: Record<string, unknown>; evidence?: EvidenceWriter; timeoutMs?: number }): Promise<Intervention> {
+  const runId = options.runId ?? randomUUID();
+  const request = options.handoffs.request({ runId, sessionId: options.sessionId, stepId: options.stepId, reason: options.reason, capabilityId: options.capabilityId, goal: options.goal, context: options.context, evidencePath: options.evidence?.directory });
   await options.evidence?.event({ type: "intervention_requested", interventionId: request.id, stepId: options.stepId, reason: options.reason });
   const deadline = Date.now() + (options.timeoutMs ?? 300_000);
   while (Date.now() < deadline) {

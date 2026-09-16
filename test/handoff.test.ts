@@ -19,4 +19,8 @@ describe("handoff control lease", () => {
     const handoff = new HandoffCoordinator(); const request = handoff.request({ runId: "run", reason: "blocked" }); handoff.takeControl(request.id);
     expect(() => handoff.takeControl(request.id)).toThrow(/not awaiting/); expect(() => handoff.get("missing")).toThrow(/Unknown/);
   });
+  it("supports an explicit abort and releases the lease", () => {
+    const handoff = new HandoffCoordinator(); const request = handoff.request({ runId: "run", reason: "blocked" }); handoff.takeControl(request.id);
+    const aborted = handoff.abort(request.id); expect(aborted.state).toBe("aborted"); expect(aborted.owner).toBe("automation"); expect(() => handoff.resume(request.id)).toThrow();
+  });
 });

@@ -8,10 +8,10 @@ export class RunOrchestrator {
   constructor(readonly sessions: SessionRegistry, readonly handoffs: HandoffCoordinator) {}
 
   interventionHandler(session: LiveSession) {
-    return async (context: { runId: string; step: Step; reason: string; evidence: EvidenceWriter }) => {
+    return async (context: { runId: string; step: Step; reason: string; capabilityId?: string; goal?: string; sanitizedContext?: Record<string, unknown>; evidence: EvidenceWriter }) => {
       const intervention = await requestAndWaitForHuman({
-        registry: this.sessions, handoffs: this.handoffs, sessionId: session.id,
-        reason: context.reason, stepId: context.step.id, evidence: context.evidence
+        runId: context.runId, registry: this.sessions, handoffs: this.handoffs, sessionId: session.id,
+        reason: context.reason, stepId: context.step.id, capabilityId: context.capabilityId, goal: context.goal, context: context.sanitizedContext, evidence: context.evidence
       });
       return { interventionId: intervention.id };
     };

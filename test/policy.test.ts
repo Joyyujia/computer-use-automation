@@ -13,4 +13,12 @@ describe("policy enforcement", () => {
   it("requires confirmation for irreversible steps", () => expect(() => enforcePolicy(step({ risk: "irreversible" }), policy)).toThrow(/confirmation/));
   it("accepts a confirmed irreversible step", () => expect(() => enforcePolicy(step({ risk: "irreversible" }), policy, true)).not.toThrow());
   it("always blocks irreversible steps under block mode", () => expect(() => enforcePolicy(step({ risk: "irreversible" }), { ...policy, irreversible: "block" }, true)).toThrow(/blocked/));
+  it("does not trust a safe label on a target matched by trusted risk rules", () => {
+    const risky = step({ target: { strategy: "text", value: "Confirm transfer", fallback: [], rationale: "model called this safe" }, risk: "safe" });
+    expect(() => enforcePolicy(risky, { ...policy, irreversible: "block", riskyTargetPatterns: [/confirm transfer/i] })).toThrow(/blocked/);
+  });
+  it("treats coordinate actions as risky even when the artifact calls them safe", () => {
+    const coordinate = step({ target: { strategy: "coordinates", value: "10,10", fallback: [], rationale: "last resort" }, risk: "safe" });
+    expect(() => enforcePolicy(coordinate, policy)).toThrow(/confirmation/);
+  });
 });

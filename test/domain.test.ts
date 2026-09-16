@@ -23,7 +23,24 @@ describe("domain validation", () => {
 
   it("requires a locator for visible and text assertions", () => {
     expect(assertionSchema.safeParse({ kind: "visible", expected: { source: "literal", value: "yes" } }).success).toBe(false);
+    expect(assertionSchema.safeParse({ kind: "visible", locator, expected: { source: "literal", value: "silently ignored" } }).success).toBe(false);
     expect(assertionSchema.safeParse({ kind: "url", expected: { source: "literal", value: "http://x" } }).success).toBe(true);
+  });
+
+  it("rejects unsupported schema versions", () => { const value = base(); value.schemaVersion = "2.0"; expect(capabilitySchema.safeParse(value).success).toBe(false); });
+
+  it("requires reviewed fallback identity and forbids value-derived extraction locators", () => {
+    const fallback = base(); fallback.steps = [{ id: "fill", action: "fill", target: { strategy: "label", value: "Member Number", logicalTarget: "member-input", fallback: [{ strategy: "css", value: "#member", logicalTarget: "different-control", fallback: [], rationale: "wrong identity" }], rationale: "primary" }, value: { source: "input", key: "memberId" }, risk: "safe", timeoutMs: 100, retries: 0 }];
+    expect(capabilitySchema.safeParse(fallback).success).toBe(false);
+    const extractedByValue = base(); extractedByValue.steps = [{ id: "read", action: "extract", target: locator, outputKey: "balance", risk: "safe", timeoutMs: 100, retries: 0 }];
+    expect(capabilitySchema.safeParse(extractedByValue).success).toBe(false);
+  });
+
+  it("requires a verification assertion before skipping a human-completed step", () => {
+    const value = base(); value.interventions = [{ code: "human_completed", message: "Human completed it", assertion: { kind: "visible", locator, timeoutMs: 100 }, resume: "verify_then_continue" }];
+    expect(capabilitySchema.safeParse(value).success).toBe(false);
+    value.interventions[0].resumeAssertion = { kind: "visible", locator, timeoutMs: 100 };
+    expect(capabilitySchema.safeParse(value).success).toBe(true);
   });
 
   it("rejects duplicate step ids", () => {
@@ -36,6 +53,8 @@ describe("domain validation", () => {
     expect(capabilitySchema.safeParse(unknownInput).success).toBe(false);
     const unknownOutput = base(); unknownOutput.steps = [{ id: "read", action: "extract", target: locator, outputKey: "missing", risk: "safe", timeoutMs: 100, retries: 0 }];
     expect(capabilitySchema.safeParse(unknownOutput).success).toBe(false);
+    const unknownCheckpointInput = base(); unknownCheckpointInput.checkpoint = { kind: "text", locator: { strategy: "css", value: "#id", fallback: [], rationale: "identity" }, expected: { source: "input", key: "missing" }, timeoutMs: 100 };
+    expect(capabilitySchema.safeParse(unknownCheckpointInput).success).toBe(false);
   });
 
   it("defaults artifact collections and approval", () => {

@@ -1,8 +1,23 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Member Servicing Console</title>
-<style>body{font:14px Arial;background:#d7d7d7;margin:0}.bar{background:#17365d;color:white;padding:12px}table{border-collapse:collapse}.panel{background:#eee;border:3px ridge #bbb;margin:28px auto;padding:18px;width:680px}td{padding:6px}.error{color:#a00;font-weight:bold}.hidden{display:none}</style></head>
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Member Servicing Console</title>
+<style>body{font:14px Arial;background:#d7d7d7;margin:0}.bar{background:#17365d;color:white;padding:12px}.panel{background:#eee;border:3px ridge #bbb;margin:28px auto;padding:18px;width:680px}table{border-collapse:collapse}td,th{padding:6px}.error{color:#a00;font-weight:bold}.notice{background:#fff5bf;border:1px solid #9b7b00;padding:10px}.hidden{display:none}.loading{color:#374151}</style></head>
 <body><div class="bar">NORTHSTAR CORE :: MEMBER SERVICING</div><div class="panel">
-<form id="lookup"><table><tr><td>Member Number</td><td><input name="memberNumber" aria-label="Member Number"></td></tr>
+<div id="service-notice" class="notice hidden" role="status">Scheduled service notice <button id="dismiss-notice">Dismiss</button></div>
+<div id="session-expired" class="error hidden" role="alert">Session expired <button id="restore-session">Restore session</button></div>
+<form id="lookup"><table><tr><td><label for="member-number">Member Number</label></td><td><input id="member-number" name="memberNumber" autocomplete="off"></td></tr>
 <tr><td></td><td><button type="submit">Find Member</button></td></tr></table></form>
-<div id="message" class="error" role="alert"></div>
-<section id="detail" class="hidden"><h2>Member Detail</h2><table border="1"><tr><th>Name</th><td>Jamie Rivera</td></tr><tr><th>Savings Balance</th><td id="balance">$2,418.73</td></tr></table></section>
-</div><script>document.querySelector('#lookup').addEventListener('submit',e=>{e.preventDefault();const v=e.target.memberNumber.value;document.querySelector('#detail').classList.toggle('hidden',v!=='12345');document.querySelector('#message').textContent=v==='12345'?'':'Member not found';});</script></body></html>
+<div id="loading" class="loading hidden" role="status">Loading member...</div><div id="message" class="error" role="alert"></div>
+<section id="detail" class="hidden" aria-label="Member Detail"><h2>Member Detail</h2><table border="1">
+<tr><th>Member Number</th><td id="detail-member-id" data-sensitive></td></tr><tr><th>Name</th><td id="member-name" data-sensitive></td></tr><tr><th>Savings Balance</th><td id="balance" data-sensitive></td></tr></table></section>
+</div><script>
+const members={"12345":{name:"Jamie Rivera",balance:"$2,418.73"},"67890":{name:"Morgan Chen",balance:"$987.65"}};
+const params=new URLSearchParams(location.search);const delayMs=Math.max(0,Number(params.get('delayMs')||0));let requestGeneration=0;
+const detail=document.querySelector('#detail'),message=document.querySelector('#message'),loading=document.querySelector('#loading'),form=document.querySelector('#lookup');
+function resetResult(){detail.classList.add('hidden');message.textContent='';loading.classList.add('hidden');document.querySelector('#detail-member-id').textContent='';document.querySelector('#member-name').textContent='';document.querySelector('#balance').textContent='';}
+if(params.get('notice')==='1')document.querySelector('#service-notice').classList.remove('hidden');
+if(params.get('expired')==='1'){document.querySelector('#session-expired').classList.remove('hidden');form.querySelector('button').disabled=true;}
+if(params.get('duplicate')==='1'){const duplicate=document.querySelector('#member-number').cloneNode();duplicate.id='member-number-duplicate';duplicate.name='duplicateMemberNumber';duplicate.setAttribute('aria-label','Member Number');document.querySelector('#member-number').after(duplicate);}
+document.querySelector('#dismiss-notice').onclick=()=>document.querySelector('#service-notice').classList.add('hidden');
+document.querySelector('#restore-session').onclick=()=>{document.querySelector('#session-expired').classList.add('hidden');form.querySelector('button').disabled=false;};
+form.addEventListener('submit',event=>{event.preventDefault();const generation=++requestGeneration;const id=event.target.memberNumber.value;resetResult();loading.classList.remove('hidden');setTimeout(()=>{if(generation!==requestGeneration||params.get('hang')==='1')return;loading.classList.add('hidden');const member=members[id];if(!member){message.textContent='Member not found';return;}const shownId=params.get('wrongMember')==='1'?(id==='12345'?'67890':'12345'):id;document.querySelector('#detail-member-id').textContent=shownId;document.querySelector('#member-name').textContent=member.name;document.querySelector('#balance').textContent=member.balance;detail.classList.remove('hidden');},delayMs);});
+</script></body></html>

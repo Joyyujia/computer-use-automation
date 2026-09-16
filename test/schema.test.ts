@@ -15,4 +15,7 @@ describe("capability contract", () => {
   it("redacts secrets and regulated identifiers recursively", () => {
     expect(redact({ token: "abc", nested: { ssn: "000-00-0000", okay: "yes" } })).toEqual({ token: "[REDACTED]", nested: { ssn: "[REDACTED]", okay: "yes" } });
   });
+  it("redacts configured runtime values inside otherwise safe fields", () => {
+    expect(redact({ rationale: "member CANARY-123 failed", url: "http://local/?id=CANARY-123" }, "", ["CANARY-123"])).toEqual({ rationale: "member [REDACTED] failed", url: "http://local/?id=[REDACTED]" });
+  });
 });

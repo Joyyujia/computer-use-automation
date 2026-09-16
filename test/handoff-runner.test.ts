@@ -17,6 +17,12 @@ describe("handoff waiting and orchestration", () => {
     await expect(requestAndWaitForHuman({ registry: {} as SessionRegistry, handoffs: new HandoffCoordinator(), sessionId: "session", reason: "blocked", timeoutMs: 1 })).rejects.toThrow(/timed out/);
   });
 
+  it("stops when the operator explicitly aborts", async () => {
+    const handoffs = new HandoffCoordinator();
+    setTimeout(() => handoffs.abort(handoffs.list()[0].id), 20);
+    await expect(requestAndWaitForHuman({ registry: {} as SessionRegistry, handoffs, sessionId: "session", reason: "blocked", timeoutMs: 1000 })).rejects.toThrow(/aborted/);
+  });
+
   it("builds a replay intervention handler bound to the session", async () => {
     const handoffs = new HandoffCoordinator(); const orchestrator = new RunOrchestrator({} as SessionRegistry, handoffs); const session = { id: "session-1" } as LiveSession;
     setTimeout(() => { const item = handoffs.list()[0]; handoffs.takeControl(item.id); handoffs.resume(item.id); }, 20);
