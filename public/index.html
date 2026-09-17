@@ -1,23 +1,253 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Member Servicing Console</title>
-<style>body{font:14px Arial;background:#d7d7d7;margin:0}.bar{background:#17365d;color:white;padding:12px}.panel{background:#eee;border:3px ridge #bbb;margin:28px auto;padding:18px;width:680px}table{border-collapse:collapse}td,th{padding:6px}.error{color:#a00;font-weight:bold}.notice{background:#fff5bf;border:1px solid #9b7b00;padding:10px}.hidden{display:none}.loading{color:#374151}</style></head>
-<body><div class="bar">NORTHSTAR CORE :: MEMBER SERVICING</div><div class="panel">
-<div id="service-notice" class="notice hidden" role="status">Scheduled service notice <button id="dismiss-notice">Dismiss</button></div>
-<div id="session-expired" class="error hidden" role="alert">Session expired <button id="restore-session">Restore session</button></div>
-<form id="lookup"><table><tr><td><label for="member-number">Member Number</label></td><td><input id="member-number" name="memberNumber" autocomplete="off"></td></tr>
-<tr><td></td><td><button type="submit">Find Member</button></td></tr></table></form>
-<div id="loading" class="loading hidden" role="status">Loading member...</div><div id="message" class="error" role="alert"></div>
-<section id="detail" class="hidden" aria-label="Member Detail"><h2>Member Detail</h2><table border="1">
-<tr><th>Member Number</th><td id="detail-member-id" data-sensitive data-automation-field="memberId"></td></tr><tr><th>Name</th><td id="member-name" data-sensitive data-automation-field="memberName"></td></tr><tr><th>Savings Balance</th><td id="balance" data-sensitive data-automation-field="balance"></td></tr></table></section>
-</div><script>
-const members={"12345":{name:"Jamie Rivera",balance:"$2,418.73"},"67890":{name:"Morgan Chen",balance:"$987.65"}};
-const params=new URLSearchParams(location.search);const delayMs=Math.max(0,Number(params.get('delayMs')||0));let requestGeneration=0;
-const detail=document.querySelector('#detail'),message=document.querySelector('#message'),loading=document.querySelector('#loading'),form=document.querySelector('#lookup');
-function resetResult(){detail.classList.add('hidden');message.textContent='';loading.classList.add('hidden');document.querySelector('#detail-member-id').textContent='';document.querySelector('#member-name').textContent='';document.querySelector('#balance').textContent='';}
-if(params.get('notice')==='1')document.querySelector('#service-notice').classList.remove('hidden');
-if(params.get('expired')==='1'){document.querySelector('#session-expired').classList.remove('hidden');form.querySelector('button').disabled=true;}
-if(params.get('duplicate')==='1'){const duplicate=document.querySelector('#member-number').cloneNode();duplicate.id='member-number-duplicate';duplicate.name='duplicateMemberNumber';duplicate.setAttribute('aria-label','Member Number');document.querySelector('#member-number').after(duplicate);}
-document.querySelector('#dismiss-notice').onclick=()=>document.querySelector('#service-notice').classList.add('hidden');
-document.querySelector('#restore-session').onclick=()=>{document.querySelector('#session-expired').classList.add('hidden');form.querySelector('button').disabled=false;};
-form.addEventListener('submit',event=>{event.preventDefault();const generation=++requestGeneration;const id=event.target.memberNumber.value;resetResult();loading.classList.remove('hidden');setTimeout(()=>{if(generation!==requestGeneration||params.get('hang')==='1')return;loading.classList.add('hidden');const member=members[id];if(!member){message.textContent='Member not found';return;}const shownId=params.get('wrongMember')==='1'?(id==='12345'?'67890':'12345'):id;document.querySelector('#detail-member-id').textContent=shownId;document.querySelector('#member-name').textContent=member.name;document.querySelector('#balance').textContent=member.balance;detail.classList.remove('hidden');},delayMs);});
-</script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Member Servicing Console</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #14213d;
+      --muted: #64748b;
+      --line: #dbe3ef;
+      --surface: #ffffff;
+      --navy: #0c1f3f;
+      --blue: #2161dc;
+      --blue-dark: #174cb2;
+      --teal: #16a394;
+      --danger: #b42318;
+      --danger-soft: #fff1f0;
+      --warning: #9a6700;
+      --warning-soft: #fff8dd;
+      --shadow: 0 24px 64px rgba(15, 35, 70, .14);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      font: 15px/1.5 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(60, 130, 246, .16), transparent 30rem),
+        radial-gradient(circle at 88% 78%, rgba(22, 163, 148, .11), transparent 28rem),
+        #eef3f9;
+    }
+    button, input { font: inherit; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 76px;
+      padding: 0 5vw;
+      color: #fff;
+      background: rgba(9, 28, 59, .97);
+      box-shadow: 0 8px 30px rgba(10, 28, 58, .18);
+    }
+    .brand { display: flex; align-items: center; gap: 13px; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-radius: 11px;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -.04em;
+      background: linear-gradient(145deg, #3479ef, #18a594);
+      box-shadow: inset 0 1px rgba(255, 255, 255, .28);
+    }
+    .brand-copy strong, .brand-copy span { display: block; }
+    .brand-copy strong { font-size: 14px; letter-spacing: .08em; }
+    .brand-copy span { color: #aebfd7; font-size: 12px; }
+    .environment {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 999px;
+      color: #dce8f7;
+      font-size: 12px;
+      font-weight: 650;
+      background: rgba(255, 255, 255, .06);
+    }
+    .environment::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #43d6a7;
+      box-shadow: 0 0 0 4px rgba(67, 214, 167, .12);
+      content: "";
+    }
+
+    .workspace { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 64px 0 72px; }
+    .intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; margin-bottom: 28px; }
+    .eyebrow { margin: 0 0 8px; color: var(--blue); font-size: 12px; font-weight: 800; letter-spacing: .14em; }
+    h1 { margin: 0; font-size: clamp(34px, 5vw, 52px); line-height: 1.05; letter-spacing: -.045em; }
+    .lede { max-width: 620px; margin: 14px 0 0; color: var(--muted); font-size: 16px; }
+    .secure-note { display: flex; align-items: center; gap: 10px; color: #34506f; font-size: 13px; font-weight: 650; }
+    .secure-note svg { width: 18px; color: var(--teal); }
+
+    .console {
+      overflow: hidden;
+      border: 1px solid rgba(185, 199, 219, .82);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .86);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+    .console-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 24px 28px; border-bottom: 1px solid var(--line); background: rgba(248, 250, 253, .85); }
+    .console-heading h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }
+    .console-heading p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+    .read-only { padding: 6px 10px; border: 1px solid #cde2df; border-radius: 999px; color: #147568; font-size: 11px; font-weight: 800; letter-spacing: .06em; background: #effaf8; white-space: nowrap; }
+
+    .alerts { padding: 0 28px; }
+    .notice, #session-expired { margin-top: 20px; padding: 13px 15px; border-radius: 12px; font-weight: 650; }
+    .notice { color: var(--warning); border: 1px solid #f0d56d; background: var(--warning-soft); }
+    #session-expired { color: var(--danger); border: 1px solid #f3b6b2; background: var(--danger-soft); }
+    .notice button, #session-expired button { margin-left: 10px; padding: 5px 9px; border: 1px solid currentColor; border-radius: 7px; color: inherit; font-size: 12px; font-weight: 750; background: transparent; cursor: pointer; }
+
+    #lookup { padding: 30px 28px 32px; }
+    .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; }
+    .field label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 750; }
+    .input-wrap { position: relative; }
+    .input-wrap svg { position: absolute; top: 25px; left: 15px; width: 19px; color: #8291a8; pointer-events: none; transform: translateY(-50%); }
+    input { width: 100%; min-height: 50px; padding: 12px 15px 12px 45px; border: 1px solid #c9d5e5; border-radius: 12px; outline: none; color: var(--ink); background: #fff; transition: border-color .18s, box-shadow .18s; }
+    input::placeholder { color: #9aa8ba; }
+    input:focus { border-color: var(--blue); box-shadow: 0 0 0 4px rgba(33, 97, 220, .12); }
+    .input-wrap input + input { margin-top: 8px; }
+    #lookup button[type="submit"] { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 50px; padding: 0 22px; border: 0; border-radius: 12px; color: #fff; font-weight: 750; background: linear-gradient(135deg, var(--blue), #3479ef); box-shadow: 0 10px 22px rgba(33, 97, 220, .24); cursor: pointer; transition: transform .18s, box-shadow .18s, background .18s; }
+    #lookup button[type="submit"]:hover { transform: translateY(-1px); box-shadow: 0 13px 26px rgba(33, 97, 220, .3); }
+    #lookup button[type="submit"]:active { transform: translateY(0); }
+    #lookup button[type="submit"]:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+    #lookup button svg { width: 17px; }
+    .field-hint { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+
+    .feedback { padding: 0 28px; }
+    .loading { display: flex; align-items: center; gap: 10px; margin: 0 0 24px; padding: 12px 14px; border: 1px solid #d6e4fa; border-radius: 11px; color: #315d9c; background: #f2f7ff; }
+    .loading::before { width: 14px; height: 14px; border: 2px solid #b7cdf0; border-top-color: var(--blue); border-radius: 50%; content: ""; animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error:not(:empty) { margin: 0 0 24px; padding: 12px 14px; border: 1px solid #f3b6b2; border-radius: 11px; color: var(--danger); font-weight: 700; background: var(--danger-soft); }
+
+    #detail { margin: 0 28px 30px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+    .detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+    .detail-heading h2 { margin: 0; font-size: 17px; }
+    .detail-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .verified { display: inline-flex; align-items: center; gap: 7px; color: #147568; font-size: 12px; font-weight: 750; }
+    .verified::before { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); content: ""; }
+    .detail-table { width: 100%; border-collapse: collapse; }
+    .detail-table th, .detail-table td { padding: 17px 22px; border-bottom: 1px solid #edf1f6; text-align: left; }
+    .detail-table tr:last-child th, .detail-table tr:last-child td { border-bottom: 0; }
+    .detail-table th { width: 38%; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .025em; }
+    .detail-table td { font-size: 15px; font-weight: 750; }
+    .detail-table tr:last-child td { color: var(--blue-dark); font-size: 22px; letter-spacing: -.025em; }
+
+    .footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 22px; color: #738197; font-size: 12px; }
+    .hidden { display: none !important; }
+
+    @media (max-width: 720px) {
+      .topbar { padding: 0 20px; }
+      .brand-copy span, .environment { display: none; }
+      .workspace { width: min(100% - 24px, 1120px); padding: 40px 0; }
+      .intro { grid-template-columns: 1fr; }
+      .secure-note { display: none; }
+      .console-heading, #lookup, .alerts, .feedback { padding-left: 20px; padding-right: 20px; }
+      .form-grid { grid-template-columns: 1fr; }
+      #lookup button[type="submit"] { width: 100%; }
+      #detail { margin-left: 20px; margin-right: 20px; }
+      .detail-heading { align-items: flex-start; }
+      .detail-table th, .detail-table td { display: block; width: 100%; padding: 8px 18px; }
+      .detail-table th { padding-top: 16px; border-bottom: 0; }
+      .detail-table td { padding-bottom: 16px; }
+      .footer { flex-direction: column; gap: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">N</div>
+      <div class="brand-copy"><strong>NORTHSTAR CORE</strong><span>Member operations workspace</span></div>
+    </div>
+    <div class="environment">Training environment</div>
+  </header>
+
+  <main class="workspace">
+    <header class="intro">
+      <div>
+        <p class="eyebrow">MEMBER OPERATIONS</p>
+        <h1 id="page-title">Member servicing</h1>
+        <p class="lede">Find a member record and review their current savings account summary in one secure workspace.</p>
+      </div>
+      <div class="secure-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+        Fictional data only
+      </div>
+    </header>
+
+    <section class="console" aria-label="Member lookup">
+      <header class="console-heading">
+        <div><h2>Member lookup</h2><p>Search by the institution-scoped member number.</p></div>
+        <span class="read-only">READ ONLY</span>
+      </header>
+
+      <div class="alerts">
+        <div id="service-notice" class="notice hidden" role="status">Scheduled service notice <button id="dismiss-notice">Dismiss</button></div>
+        <div id="session-expired" class="error hidden" role="alert">Session expired <button id="restore-session">Restore session</button></div>
+      </div>
+
+      <form id="lookup">
+        <div class="form-grid">
+          <div class="field">
+            <label for="member-number">Member Number</label>
+            <div class="input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              <input id="member-number" name="memberNumber" inputmode="numeric" autocomplete="off" placeholder="Enter a member number">
+            </div>
+            <p class="field-hint">Use the identifier assigned by your institution.</p>
+          </div>
+          <button type="submit">
+            <span>Find Member</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+      </form>
+
+      <div class="feedback">
+        <div id="loading" class="loading hidden" role="status">Loading member...</div>
+        <div id="message" class="error" role="alert"></div>
+      </div>
+
+      <section id="detail" class="hidden" aria-label="Member Detail">
+        <header class="detail-heading">
+          <div><h2>Member Detail</h2><p>Current core-system record</p></div>
+          <span class="verified">Record found</span>
+        </header>
+        <table class="detail-table">
+          <tr><th>Member Number</th><td id="detail-member-id" data-sensitive data-automation-field="memberId"></td></tr>
+          <tr><th>Name</th><td id="member-name" data-sensitive data-automation-field="memberName"></td></tr>
+          <tr><th>Savings Balance</th><td id="balance" data-sensitive data-automation-field="balance"></td></tr>
+        </table>
+      </section>
+    </section>
+
+    <footer class="footer"><span>Northstar Core · Internal servicing tool</span><span>Automation-safe training fixture</span></footer>
+  </main>
+
+  <script>
+    const members={"12345":{name:"Jamie Rivera",balance:"$2,418.73"},"67890":{name:"Morgan Chen",balance:"$987.65"}};
+    const params=new URLSearchParams(location.search);const delayMs=Math.max(0,Number(params.get('delayMs')||0));let requestGeneration=0;
+    const detail=document.querySelector('#detail'),message=document.querySelector('#message'),loading=document.querySelector('#loading'),form=document.querySelector('#lookup');
+    function resetResult(){detail.classList.add('hidden');message.textContent='';loading.classList.add('hidden');document.querySelector('#detail-member-id').textContent='';document.querySelector('#member-name').textContent='';document.querySelector('#balance').textContent='';}
+    if(params.get('notice')==='1')document.querySelector('#service-notice').classList.remove('hidden');
+    if(params.get('expired')==='1'){document.querySelector('#session-expired').classList.remove('hidden');form.querySelector('button').disabled=true;}
+    if(params.get('duplicate')==='1'){const duplicate=document.querySelector('#member-number').cloneNode();duplicate.id='member-number-duplicate';duplicate.name='duplicateMemberNumber';duplicate.setAttribute('aria-label','Member Number');document.querySelector('#member-number').after(duplicate);}
+    document.querySelector('#dismiss-notice').onclick=()=>document.querySelector('#service-notice').classList.add('hidden');
+    document.querySelector('#restore-session').onclick=()=>{document.querySelector('#session-expired').classList.add('hidden');form.querySelector('button').disabled=false;};
+    form.addEventListener('submit',event=>{event.preventDefault();const generation=++requestGeneration;const id=event.target.memberNumber.value;resetResult();loading.classList.remove('hidden');setTimeout(()=>{if(generation!==requestGeneration||params.get('hang')==='1')return;loading.classList.add('hidden');const member=members[id];if(!member){message.textContent='Member not found';return;}const shownId=params.get('wrongMember')==='1'?(id==='12345'?'67890':'12345'):id;document.querySelector('#detail-member-id').textContent=shownId;document.querySelector('#member-name').textContent=member.name;document.querySelector('#balance').textContent=member.balance;detail.classList.remove('hidden');},delayMs);});
+  </script>
+</body>
+</html>

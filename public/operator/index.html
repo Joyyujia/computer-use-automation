@@ -1,2 +1,80 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Automation Operator</title><link rel="stylesheet" href="styles.css"></head><body>
-<main><h1>Human Intervention Console</h1><p id="status">Waiting for an intervention...</p><section id="panel" hidden><p id="reason"></p><p id="scope"></p><pre id="context"></pre><button id="take">Take control</button><button id="resume">Return control</button><button id="abort">Abort run</button><div><img id="screen" alt="Live automation session"></div><input id="text" placeholder="Text to type"><button id="type">Type into focused control</button></section></main><script src="operator.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Automation Operator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">N</span>
+      <div><strong>NORTHSTAR CONTROL</strong><span>Human intervention workspace</span></div>
+    </div>
+    <span class="secure-badge">LOCAL SESSION</span>
+  </header>
+
+  <main>
+    <header class="page-heading">
+      <div>
+        <p class="eyebrow">AUTOMATION OPERATIONS</p>
+        <h1>Intervention console</h1>
+        <p>Review the live session, take exclusive control, and return it to automation when the blocking condition is resolved.</p>
+      </div>
+      <div id="status" class="status" data-state="waiting"><span class="status-dot"></span><span>Waiting for an intervention...</span></div>
+    </header>
+
+    <section id="empty" class="empty-state">
+      <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/><path d="M18 3v4h4"/><path d="m22 3-5 5"/></svg>
+      </div>
+      <h2>No active handoff</h2>
+      <p>This page will update automatically when automation requests human help.</p>
+    </section>
+
+    <section id="panel" class="intervention" hidden>
+      <article class="card summary-card">
+        <div class="card-heading">
+          <div><p class="card-kicker">ACTIVE REQUEST</p><h2>Intervention details</h2></div>
+          <span class="live-pill">LIVE</span>
+        </div>
+        <div class="reason-block"><span>Reason</span><p id="reason"></p></div>
+        <p id="scope" class="scope"></p>
+        <details>
+          <summary>Sanitized execution context</summary>
+          <pre id="context"></pre>
+        </details>
+      </article>
+
+      <article class="card session-card">
+        <div class="card-heading">
+          <div><p class="card-kicker">LIVE BROWSER</p><h2>Session preview</h2></div>
+          <span class="preview-note">Click preview to interact</span>
+        </div>
+        <div class="screen-shell">
+          <div class="browser-bar"><span></span><span></span><span></span><div>Retained automation session</div></div>
+          <img id="screen" alt="Live automation session">
+        </div>
+      </article>
+
+      <article class="card controls-card">
+        <div class="card-heading"><div><p class="card-kicker">CONTROL LEASE</p><h2>Operator actions</h2></div></div>
+        <div class="lease-actions">
+          <button id="take" class="primary">Take control</button>
+          <button id="resume" class="success">Return control</button>
+          <button id="abort" class="danger">Abort run</button>
+        </div>
+        <div class="type-row">
+          <label for="text">Type into the focused control</label>
+          <div><input id="text" type="text" autocomplete="off" placeholder="Text is redacted from evidence"><button id="type">Type text</button></div>
+        </div>
+        <p class="privacy-note">Typed values are never written to the evidence bundle.</p>
+      </article>
+    </section>
+  </main>
+
+  <footer>Local operator console · Same-session handoff · Exclusive control lease</footer>
+  <script src="operator.js"></script>
+</body>
+</html>
