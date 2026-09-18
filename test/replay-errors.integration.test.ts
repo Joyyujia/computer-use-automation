@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { chromium } from "@playwright/test";
 import { replay } from "../src/core/replay.js";
 import { capabilitySchema, type Capability, type Locator, type Step } from "../src/core/schema.js";
 import type { Policy } from "../src/core/policy.js";
@@ -20,6 +21,7 @@ beforeAll(async () => {
   app.get("/dialog", (_req, res) => res.send(`<button id="open" onclick="alert('sensitive application text')">Open dialog</button><div id="done">Done</div>`));
   app.get("/human-complete", (_req, res) => res.send(`<div id="blocker">Human required</div><button id="finish" onclick="document.querySelector('#count').textContent=String(Number(document.querySelector('#count').textContent)+1);document.querySelector('#blocker')?.remove()">Finish once</button><div id="count">0</div>`));
   app.get("/execution-failure", (_req, res) => res.send(`<button id="actual-finish" onclick="document.querySelector('#done').hidden=false;document.querySelector('#count').textContent=String(Number(document.querySelector('#count').textContent)+1)">Finish</button><div id="done" hidden>Done</div><div id="count">0</div>`));
+  app.get("/policy-transition", (_req, res) => res.send(`<input id="write" oninput="window.writeCount=(window.writeCount||0)+1;history.pushState({},'', '/forbidden')"><div>Ready</div>`));
   app.use(express.static("public")); server = createServer(app); await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); if (!address || typeof address === "string") throw new Error("No port"); origin = `http://127.0.0.1:${address.port}`;
 });
@@ -44,6 +46,27 @@ describe("replay failure and recovery behavior", () => {
   it("returns policy_denied for a forbidden origin", async () => {
     const flow = base([navigate("https://forbidden.example")], { kind: "url", expected: { source: "literal", value: "https://forbidden.example" }, timeoutMs: 100 });
     const result = await replay(flow, {}, { policy: policy(), evidenceRoot: await mkdtemp(path.join(tmpdir(), "policy-")) }); expect(result.status).toBe("failure"); if (result.status === "failure") expect(result.error.category).toBe("policy_denied");
+  });
+
+  it("blocks a write when the current page origin is forbidden", async () => {
+    const browser = await chromium.launch(); const page = await browser.newPage(); await page.goto(origin);
+    const flow = base([{ id: "blocked-fill", action: "fill", target: loc("input[name=memberNumber]"), value: { source: "literal", value: "must-not-write" }, risk: "safe", timeoutMs: 200, retries: 2 }], visible("body"));
+    try {
+      const result = await replay(flow, {}, { page, policy: { ...policy(), allowedOrigins: ["https://allowed.example"] }, evidenceRoot: await mkdtemp(path.join(tmpdir(), "current-origin-")) });
+      expect(result.status).toBe("failure"); if (result.status === "failure") expect(result.error.category).toBe("policy_denied");
+      expect(await page.locator("input[name=memberNumber]").inputValue()).toBe("");
+    } finally { await browser.close(); }
+  });
+
+  it("does not retry a write that triggers a policy violation", async () => {
+    const browser = await chromium.launch(); const page = await browser.newPage();
+    const target = `${origin}/policy-transition`;
+    const flow = base([navigate(target), { id: "write-once", action: "fill", target: loc("#write"), value: { source: "literal", value: "x" }, risk: "safe", timeoutMs: 200, retries: 2 }], visible("body"));
+    try {
+      const result = await replay(flow, {}, { page, policy: { ...policy(), allowedPathPatterns: [/^\/policy-transition$/] }, evidenceRoot: await mkdtemp(path.join(tmpdir(), "policy-no-retry-")) });
+      expect(result.status).toBe("failure"); if (result.status === "failure") expect(result.error.category).toBe("policy_denied");
+      expect(await page.evaluate(() => (window as typeof window & { writeCount?: number }).writeCount)).toBe(1);
+    } finally { await browser.close(); }
   });
 
   it("denies the main step before any intervention or recovery side effect", async () => {

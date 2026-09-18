@@ -3,7 +3,7 @@ import { OpenAIModelAdapter, ScriptedModelAdapter, type ModelContext } from "../
 import { discoveryDecisionJsonSchema, toModelDecisionEnvelope } from "../src/core/discovery-schema.js";
 
 const decision = { kind: "request_human" as const, reason: "unknown dialog", rationale: "safe stop" };
-const context: ModelContext = { goal: "test", targetUrl: "https://allowed.example", availableBusinessOutcomes: [], inputs: {}, observation: { url: "https://allowed.example", title: "", visibleText: "", controls: [], extractables: [], alerts: [] }, history: [], remainingSteps: 2 };
+const context: ModelContext = { goal: "test", targetUrl: "https://allowed.example", availableBusinessOutcomes: [], availableOutputs: [{ key: "balance", type: "string", description: "Savings balance" }], inputs: {}, observation: { url: "https://allowed.example", title: "", visibleText: "", controls: [], extractables: [], alerts: [] }, history: [], remainingSteps: 2 };
 afterEach(() => vi.unstubAllGlobals());
 
 describe("model adapters", () => {
@@ -29,18 +29,27 @@ describe("model adapters", () => {
     expect(discoveryDecisionJsonSchema.additionalProperties).toBe(false);
   });
 
+  it("gives every strict-schema discriminator an explicit string type", () => {
+    const variants = [...discoveryDecisionJsonSchema.$defs.value.anyOf, ...discoveryDecisionJsonSchema.$defs.assertion.anyOf, ...discoveryDecisionJsonSchema.$defs.decision.anyOf] as ReadonlyArray<{ properties: Record<string, { type?: string; enum?: readonly string[] }> }>;
+    for (const variant of variants) {
+      const discriminator = variant.properties.source ?? variant.properties.kind;
+      expect(discriminator.type).toBe("string");
+      expect(discriminator.enum).toHaveLength(1);
+    }
+  });
+
   it("surfaces HTTP failures and missing output", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("rate limited", { status: 429 }))); await expect(new OpenAIModelAdapter("key").decide(context)).rejects.toThrow(/429/);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ output: [] }), { status: 200 }))); await expect(new OpenAIModelAdapter("key").decide(context)).rejects.toThrow(/output_text/);
   });
 
   it("rejects model output outside the decision schema", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ output_text: JSON.stringify({ ...toModelDecisionEnvelope(decision), kind: "click", target: null }) }), { status: 200 })));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ output_text: JSON.stringify({ decision: { kind: "click", target: null, rationale: "invalid" } }) }), { status: 200 })));
     await expect(new OpenAIModelAdapter("key").decide(context)).rejects.toThrow();
   });
 
   it("rejects populated fields that do not apply to the selected decision kind", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ output_text: JSON.stringify({ ...toModelDecisionEnvelope(decision), url: "https://allowed.example" }) }), { status: 200 })));
-    await expect(new OpenAIModelAdapter("key").decide(context)).rejects.toThrow(/url must be null/);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ output_text: JSON.stringify({ decision: { ...decision, url: "https://allowed.example" } }) }), { status: 200 })));
+    await expect(new OpenAIModelAdapter("key").decide(context)).rejects.toThrow(/url/);
   });
 });

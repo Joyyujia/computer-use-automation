@@ -25,13 +25,21 @@ export function enforceUrl(rawUrl: string, policy: Policy): void {
   if (policy.allowedPathPatterns && !policy.allowedPathPatterns.some(pattern => { pattern.lastIndex = 0; return pattern.test(url.pathname); })) throw new PolicyViolation(`Route ${url.pathname} is not allowlisted`);
 }
 
-export async function enforceBrowserState(page: Page, policy: Policy): Promise<void> {
+export async function enforceBrowserState(page: Page, policy: Policy, options: { allowInitialBlank?: boolean } = {}): Promise<void> {
   const unexpectedPages = page.context().pages().filter(candidate => candidate !== page);
   if (unexpectedPages.length > 0) {
     await Promise.all(unexpectedPages.map(candidate => candidate.close().catch(() => undefined)));
     throw new PolicyViolation("Unexpected popup was blocked by policy");
   }
-  enforceUrl(page.url(), policy);
+  const mainFrame = page.mainFrame();
+  for (const frame of page.frames()) {
+    const frameUrl = frame.url();
+    if (frameUrl === "about:blank") {
+      if (frame === mainFrame && !options.allowInitialBlank) throw new PolicyViolation("The current page has no allowlisted origin");
+      continue;
+    }
+    enforceUrl(frameUrl, policy);
+  }
 }
 
 const locatorTree = (locator: Locator): Locator[] => [locator, ...locator.fallback.flatMap(locatorTree)];

@@ -13,6 +13,7 @@ import { HandoffCoordinator } from "../src/core/handoff.js";
 import { createOperatorServer } from "../src/core/operator-server.js";
 import { RunOrchestrator } from "../src/core/run-orchestrator.js";
 import { PlaywrightSurface } from "../src/core/playwright-surface.js";
+import { lookupBalanceProfile } from "../src/core/capability-profile.js";
 import artifactFixture from "../artifacts/lookup-balance.v1.json" with { type: "json" };
 
 let server: Server; let origin: string;
@@ -42,6 +43,7 @@ describe("vertical slice", () => {
       expect(result.artifact.recoveries.map(recovery => recovery.id)).toContain("dismiss-service-notice");
       expect(result.artifact.interventions.map(intervention => intervention.code)).toContain("session_expired");
       expect(model.contexts[0]?.targetUrl).toBe(origin); expect(model.contexts[0]?.observation.url).toBe(`${origin}/`);
+      expect(model.contexts[0]?.availableOutputs).toEqual([{ key: "balance", type: "string", description: "Display-formatted savings balance" }]);
       const extractionObservation = model.contexts.find(context => context.observation.extractables.some(field => field.target.value === "#balance"));
       expect(extractionObservation?.observation.extractables).toContainEqual(expect.objectContaining({ name: "Savings Balance", value: "[REDACTED]", target: expect.objectContaining({ value: "#balance", logicalTarget: "balance" }) }));
       expect(await readFile(path.join(result.evidencePath, "manifest.json"), "utf8")).not.toContain("12345");
@@ -80,10 +82,10 @@ describe("vertical slice", () => {
       { kind: "wait", durationMs: 50, rationale: "Observed $2,418.73 for person@example.com" },
       { kind: "request_human", reason: "stop", rationale: "done" }
     ]);
-    const result = await discover({ goal: "inspect safely", entrypoint: `${origin}/?token=LEAK-URL-9191#private-fragment`, inputs: {}, model, policy: policy(), evidenceRoot: root });
+    const result = await discover({ goal: "Inspect https://goal.example/?token=GOAL-URL-8181 for goal-person@example.com safely", entrypoint: `${origin}/?token=LEAK-URL-9191#private-fragment`, inputs: {}, model, policy: policy(), evidenceRoot: root });
     expect(result.status).toBe("intervention_required");
     const contexts = JSON.stringify(model.contexts);
-    for (const value of ["LEAK-URL-9191", "private-fragment", "$2,418.73", "person@example.com"]) expect(contexts).not.toContain(value);
+    for (const value of ["LEAK-URL-9191", "private-fragment", "GOAL-URL-8181", "goal-person@example.com", "$2,418.73", "person@example.com"]) expect(contexts).not.toContain(value);
     expect(model.contexts[0]?.targetUrl).toContain("REDACTED");
     expect(await readFile(path.join(result.evidencePath, "events.jsonl"), "utf8")).not.toContain("LEAK-URL-9191");
   }, 20_000);
@@ -93,7 +95,7 @@ describe("vertical slice", () => {
     const exhausted = await discover({ goal: "never finishes", entrypoint: origin, inputs: {}, model: new ScriptedModelAdapter([{ kind: "navigate", url: origin, rationale: "open" }]), policy: policy(), maxSteps: 1, evidenceRoot: path.join(root, "limit") });
     expect(exhausted.status).toBe("failure"); if (exhausted.status === "failure") expect(exhausted.message).toContain("step limit");
     const missing = { strategy: "css" as const, value: "#missing", fallback: [], rationale: "fixture" };
-    const checkpoint = await discover({ goal: "bad checkpoint", entrypoint: origin, inputs: {}, model: new ScriptedModelAdapter([{ kind: "complete", checkpoint: { kind: "visible", locator: missing, timeoutMs: 100 }, businessOutcomes: [], rationale: "incorrect" }]), policy: policy(), evidenceRoot: path.join(root, "checkpoint") });
+    const checkpoint = await discover({ goal: "bad checkpoint", entrypoint: origin, inputs: {}, model: new ScriptedModelAdapter([{ kind: "complete", checkpoint: { kind: "visible", locator: missing, timeoutMs: 100 }, businessOutcomes: [], rationale: "incorrect" }]), profile: { ...lookupBalanceProfile, outputs: {} }, policy: policy(), evidenceRoot: path.join(root, "checkpoint") });
     expect(checkpoint.status).toBe("failure"); if (checkpoint.status === "failure") expect(checkpoint.message).toContain("success contract");
   }, 20_000);
 
@@ -107,6 +109,21 @@ describe("vertical slice", () => {
       { kind: "navigate", url: origin, rationale: "open" }, { kind: "navigate", url: origin, rationale: "repeat" }, { kind: "navigate", url: origin, rationale: "repeat" }
     ]), policy: policy(), maxSteps: 4, evidenceRoot: path.join(root, "repeated") });
     expect(repeated.status).toBe("intervention_required"); if (repeated.status === "intervention_required") expect(repeated.reason).toContain("without observable progress");
+  }, 20_000);
+
+  it("rejects unknown output keys and premature completion without executing them", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "cua-model-contract-"));
+    const locator = { strategy: "css" as const, value: "#balance", fallback: [], rationale: "model-proposed extraction" };
+    const model = new ScriptedModelAdapter([
+      { kind: "extract", target: locator, outputKey: "savingsBalance", rationale: "wrong output contract key" },
+      { kind: "complete", checkpoint: { kind: "visible", locator: { strategy: "css", value: "body", fallback: [], rationale: "weak completion" }, timeoutMs: 100 }, businessOutcomes: [], rationale: "complete too early" },
+      { kind: "request_human", reason: "contract correction exhausted", rationale: "stop safely" }
+    ]);
+    const result = await discover({ goal: "Look up a balance", entrypoint: origin, inputs: { memberId: "12345" }, model, policy: policy(), evidenceRoot: root, maxSteps: 3 });
+    expect(result.status).toBe("intervention_required");
+    const events = await readFile(path.join(result.evidencePath, "events.jsonl"), "utf8");
+    expect(events).toContain("Unknown outputKey savingsBalance");
+    expect(events).toContain("Required outputs not yet extracted: balance");
   }, 20_000);
 
   it("validates declared discovery inputs before launching the model or browser", async () => {
@@ -152,7 +169,9 @@ describe("vertical slice", () => {
     const endpoint = `http://127.0.0.1:${address.port}/api/intervention/${intervention.id}`;
     try {
       expect((await fetch(`${endpoint}/take`, { method: "POST" }).then(r => r.json())).owner).toBe("human");
-      await fetch(`${endpoint}/type`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "12345" }) });
+      expect((await fetch(`${endpoint}/resume`, { method: "POST" })).status).toBe(409);
+      const typed = await fetch(`${endpoint}/type`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "12345" }) }).then(r => r.json());
+      expect(typed.humanActions).toHaveLength(1);
       expect(await session.page.getByLabel("Member Number").inputValue()).toBe("12345");
       expect((await fetch(`${endpoint}/resume`, { method: "POST" }).then(r => r.json())).owner).toBe("automation");
       expect(session.owner).toBe("automation"); expect(handoffs.get(intervention.id).humanActions).toHaveLength(1);

@@ -54,7 +54,10 @@
         </div>
         <div class="screen-shell">
           <div class="browser-bar"><span></span><span></span><span></span><div>Retained automation session</div></div>
-          <img id="screen" alt="Live automation session">
+          <div id="screen-stage" class="screen-stage">
+            <img id="screen" class="active" alt="Live automation session">
+            <img id="screen-buffer" alt="" aria-hidden="true">
+          </div>
         </div>
       </article>
 
@@ -64,6 +67,10 @@
           <button id="take" class="primary">Take control</button>
           <button id="resume" class="success">Return control</button>
           <button id="abort" class="danger">Abort run</button>
+        </div>
+        <div id="action-confirmation" class="action-confirmation" data-state="waiting" aria-live="polite">
+          <span class="action-dot" aria-hidden="true"></span>
+          <div><strong id="action-title">No human action recorded</strong><span id="action-detail">Take control, then interact with the session preview.</span></div>
         </div>
         <div class="type-row">
           <label for="text">Type into the focused control</label>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { enforcePolicy, PolicyViolation, type Policy } from "../src/core/policy.js";
+import type { Page } from "@playwright/test";
+import { enforceBrowserState, enforcePolicy, PolicyViolation, type Policy } from "../src/core/policy.js";
 import type { Step } from "../src/core/schema.js";
 
 const policy: Policy = { allowedOrigins: ["https://allowed.example"], allowedActions: ["navigate", "click"], irreversible: "confirm" };
@@ -28,5 +29,17 @@ describe("policy enforcement", () => {
   it("treats coordinate actions as risky even when the artifact calls them safe", () => {
     const coordinate = step({ target: { strategy: "coordinates", value: "10,10", fallback: [], rationale: "last resort" }, risk: "safe" });
     expect(() => enforcePolicy(coordinate, policy)).toThrow(/confirmation/);
+  });
+
+  it("checks the current page and every child-frame origin", async () => {
+    const pageFor = (mainUrl: string, childUrls: string[] = []) => {
+      const main = { url: () => mainUrl };
+      const page = { context: () => ({ pages: () => [page] }), mainFrame: () => main, frames: () => [main, ...childUrls.map(url => ({ url: () => url }))] };
+      return page as unknown as Page;
+    };
+    await expect(enforceBrowserState(pageFor("https://forbidden.example"), policy)).rejects.toThrow(/Origin/);
+    await expect(enforceBrowserState(pageFor("https://allowed.example", ["https://forbidden.example/frame"]), policy)).rejects.toThrow(/Origin/);
+    await expect(enforceBrowserState(pageFor("about:blank"), policy, { allowInitialBlank: true })).resolves.toBeUndefined();
+    await expect(enforceBrowserState(pageFor("about:blank"), policy)).rejects.toThrow(/no allowlisted origin/);
   });
 });

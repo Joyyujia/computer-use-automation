@@ -81,15 +81,28 @@ pre { max-height: 270px; margin: 0; padding: 13px; overflow: auto; border-top: 1
 .browser-bar { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-bottom: 1px solid #c1ccdb; background: #edf1f6; }
 .browser-bar > span { width: 8px; height: 8px; border-radius: 50%; background: #b1bdcd; }
 .browser-bar div { flex: 1; margin-left: 7px; color: #718097; font-size: 10px; text-align: center; }
-img { display: block; width: 100%; min-height: 330px; max-height: 620px; object-fit: contain; background: #fff; cursor: crosshair; }
+.screen-stage { position: relative; min-height: 330px; aspect-ratio: 16 / 9; overflow: hidden; background: #fff; cursor: not-allowed; }
+.screen-stage.interactive { cursor: crosshair; }
+.screen-stage.sending { opacity: .72; }
+.screen-stage img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; opacity: 0; pointer-events: none; }
+.screen-stage img.active { opacity: 1; }
 
 .controls-card { grid-column: 1; grid-row: 2; }
 .lease-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; padding: 20px 22px 10px; }
 button { min-height: 42px; padding: 0 14px; border: 1px solid #c8d4e3; border-radius: 10px; color: #33445e; font-weight: 750; background: #fff; cursor: pointer; transition: transform .16s, box-shadow .16s, border-color .16s; }
 button:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(18,39,76,.11); }
+button:disabled { cursor: not-allowed; opacity: .48; transform: none; box-shadow: none; }
 button.primary { border-color: var(--blue); color: #fff; background: var(--blue); }
 button.success { border-color: #9bd4ca; color: #087568; background: #eaf9f6; }
 button.danger { grid-column: 1 / -1; border-color: #efc0bc; color: var(--red); background: #fff3f2; }
+.action-confirmation { display: flex; align-items: center; gap: 10px; margin: 2px 22px 8px; padding: 11px 12px; border: 1px solid #d9e1ec; border-radius: 10px; color: #53647e; background: #f7f9fc; }
+.action-confirmation .action-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; box-shadow: 0 0 0 4px rgba(148,163,184,.14); }
+.action-confirmation strong, .action-confirmation span { display: block; }
+.action-confirmation strong { color: #34445d; font-size: 11px; }
+.action-confirmation div span { margin-top: 1px; font-size: 10px; }
+.action-confirmation[data-state="ready"] { border-color: #a9dacf; color: #19766c; background: #effaf7; }
+.action-confirmation[data-state="ready"] .action-dot { background: #10a790; box-shadow: 0 0 0 4px rgba(16,167,144,.14); }
+.action-confirmation[data-state="ready"] strong { color: #087568; }
 .type-row { padding: 12px 22px 4px; }
 .type-row label { display: block; margin-bottom: 7px; color: #465975; font-size: 12px; font-weight: 750; }
 .type-row > div { display: flex; gap: 8px; }
@@ -114,5 +127,5 @@ footer { padding: 22px; border-top: 1px solid rgba(201,212,226,.65); color: #758
   .lease-actions { grid-template-columns: 1fr; }
   button.danger { grid-column: auto; }
   .type-row > div { flex-direction: column; }
-  img { min-height: 220px; }
+  .screen-stage { min-height: 220px; }
 }
