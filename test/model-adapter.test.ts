@@ -38,6 +38,12 @@ describe("model adapters", () => {
     }
   });
 
+  it("keeps API assertion timeouts aligned with the positive runtime constraint", () => {
+    for (const variant of discoveryDecisionJsonSchema.$defs.assertion.anyOf) {
+      expect(variant.properties.timeoutMs).toMatchObject({ type: "integer", minimum: 1 });
+    }
+  });
+
   it("surfaces HTTP failures and missing output", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("rate limited", { status: 429 }))); await expect(new OpenAIModelAdapter("key").decide(context)).rejects.toThrow(/429/);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ output: [] }), { status: 200 }))); await expect(new OpenAIModelAdapter("key").decide(context)).rejects.toThrow(/output_text/);

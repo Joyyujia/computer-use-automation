@@ -28,9 +28,9 @@ export function toModelDecisionEnvelope(decision: DiscoveryDecision): ModelDecis
 }
 
 const assertion = { anyOf: [
-  { type: "object", properties: { kind: { type: "string", enum: ["visible"] }, locator: { $ref: "#/$defs/locator" }, timeoutMs: { type: "integer" } }, required: ["kind", "locator", "timeoutMs"], additionalProperties: false },
-  { type: "object", properties: { kind: { type: "string", enum: ["text"] }, locator: { $ref: "#/$defs/locator" }, expected: { $ref: "#/$defs/value" }, timeoutMs: { type: "integer" } }, required: ["kind", "locator", "expected", "timeoutMs"], additionalProperties: false },
-  { type: "object", properties: { kind: { type: "string", enum: ["url"] }, expected: { $ref: "#/$defs/value" }, timeoutMs: { type: "integer" } }, required: ["kind", "expected", "timeoutMs"], additionalProperties: false }
+  { type: "object", properties: { kind: { type: "string", enum: ["visible"] }, locator: { $ref: "#/$defs/locator" }, timeoutMs: { type: "integer", minimum: 1 } }, required: ["kind", "locator", "timeoutMs"], additionalProperties: false },
+  { type: "object", properties: { kind: { type: "string", enum: ["text"] }, locator: { $ref: "#/$defs/locator" }, expected: { $ref: "#/$defs/value" }, timeoutMs: { type: "integer", minimum: 1 } }, required: ["kind", "locator", "expected", "timeoutMs"], additionalProperties: false },
+  { type: "object", properties: { kind: { type: "string", enum: ["url"] }, expected: { $ref: "#/$defs/value" }, timeoutMs: { type: "integer", minimum: 1 } }, required: ["kind", "expected", "timeoutMs"], additionalProperties: false }
 ] };
 
 export const discoveryDecisionJsonSchema = {

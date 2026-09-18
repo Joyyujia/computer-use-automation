@@ -1,0 +1,36 @@
+{
+  "classification": "supplemental_independent_live_verification",
+  "purpose": "Fresh post-hardening verification of genuine API-backed discovery followed by deterministic replay of the exact generated artifact with model access disabled.",
+  "artifact": {
+    "path": "artifact/member.lookup-savings-balance.f1798a78-e1da-4e25-83a6-9071ed18aa42.json",
+    "sha256": "cd88ffb533fb446a92c29dd5000ddaa5fb323ac1aa226894b5d544b0ce5b16d1",
+    "capabilityId": "member.lookup-savings-balance",
+    "discoveryRunId": "f1798a78-e1da-4e25-83a6-9071ed18aa42",
+    "createdFromLiveRun": true
+  },
+  "runs": {
+    "liveDiscovery": {
+      "runId": "f1798a78-e1da-4e25-83a6-9071ed18aa42",
+      "command": "CUA_HEADLESS=true CUA_MEMBER_ID=<REDACTED> npm run discover -- \"Look up the supplied member and read their savings balance\"",
+      "model": "gpt-5.4-mini",
+      "modelBacked": true,
+      "status": "success",
+      "evidencePath": "live-discovery"
+    },
+    "secondMemberReplay": {
+      "runId": "5c5ad0c8-e45e-443c-b1ec-0134a3ce8b2c",
+      "command": "env -u OPENAI_API_KEY CUA_HEADLESS=true npm run replay -- <supplemental-artifact> '{\"memberId\":\"<REDACTED>\"}'",
+      "inputCase": "second_valid_member_distinct_from_discovery",
+      "modelAccessDisabled": true,
+      "status": "success",
+      "evidencePath": "replay-second-member"
+    }
+  },
+  "review": {
+    "redactionChecked": true,
+    "secretsChecked": true,
+    "exactArtifactReused": true,
+    "canonicalSubmissionReplaced": false,
+    "notes": "This supplemental bundle records an independent rerun after policy and model-schema hardening. The original complete submission bundle remains canonical because it also contains not-found, delayed-response, and human-handoff evidence."
+  }
+}

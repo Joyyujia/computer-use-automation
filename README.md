@@ -48,7 +48,7 @@ Discovery opens and policy-checks the configured entrypoint before the model rec
 
 `approval: "draft"` is review metadata in this assignment implementation, not a replay gate: the CLI intentionally executes draft artifacts so a newly discovered capability can be demonstrated and evaluated. A production registry or deployment wrapper should reject non-`approved` artifacts before invoking replay.
 
-The live adapter records provider response IDs and marks provenance as live. The scripted adapter used in tests cannot produce live provenance. The reviewed API-backed run, exact generated artifact, deterministic replays, and same-session handoff are tracked in [`evidence/submission/index.json`](evidence/submission/index.json); tests remain separate supporting evidence.
+The live adapter records provider response IDs and marks provenance as live. The scripted adapter used in tests cannot produce live provenance. The reviewed API-backed run, exact generated artifact, deterministic replays, and same-session handoff are tracked in [`evidence/submission/index.json`](evidence/submission/index.json); tests remain separate supporting evidence. A fresh post-hardening live discovery and model-disabled replay are retained as [supplemental independent verification](evidence/submission/independent-verification/index.json).
 
 Replay a reviewed artifact without any model call:
 

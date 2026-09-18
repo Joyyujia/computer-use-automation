@@ -1,0 +1,66 @@
+{
+  "url": "http://127.0.0.1:4173/",
+  "title": "Member Servicing Console",
+  "visibleText": "N\nNORTHSTAR CORE\nMember operations workspace\nTraining environment\nMEMBER OPERATIONS\nMember servicing\nFind a member record and review their current savings account summary in one secure workspace.\nFictional data only\nMember lookup\nSearch by the institution-scoped member number.\nREAD ONLY\nMember Number\nUse the identifier assigned by your institution.\nFind Member\nMember Detail\nCurrent core-system record\nRecord found\nMember Number\n[REDACTED]\nName\n[REDACTED]\nSavings Balance\n[REDACTED]\nNorthstar Core · Internal servicing tool\nAutomation-safe training fixture",
+  "controls": [
+    {
+      "role": "textbox",
+      "name": "Member Number",
+      "tag": "input",
+      "disabled": false,
+      "value": "[PRESENT]",
+      "frame": []
+    },
+    {
+      "role": "button",
+      "name": "Find Member",
+      "tag": "button",
+      "type": "submit",
+      "disabled": false,
+      "frame": []
+    }
+  ],
+  "extractables": [
+    {
+      "name": "Member Number",
+      "target": {
+        "strategy": "css",
+        "value": "#detail-member-id",
+        "name": "",
+        "frame": [],
+        "logicalTarget": "memberId",
+        "fallback": [],
+        "rationale": "Application-declared extractable field"
+      },
+      "value": "[REDACTED]"
+    },
+    {
+      "name": "Name",
+      "target": {
+        "strategy": "css",
+        "value": "#member-name",
+        "name": "",
+        "frame": [],
+        "logicalTarget": "memberName",
+        "fallback": [],
+        "rationale": "Application-declared extractable field"
+      },
+      "value": "[REDACTED]"
+    },
+    {
+      "name": "Savings Balance",
+      "target": {
+        "strategy": "css",
+        "value": "#balance",
+        "name": "",
+        "frame": [],
+        "logicalTarget": "balance",
+        "fallback": [],
+        "rationale": "Application-declared extractable field"
+      },
+      "value": "[REDACTED]"
+    }
+  ],
+  "alerts": [],
+  "frames": []
+}

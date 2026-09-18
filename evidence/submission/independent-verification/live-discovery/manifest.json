@@ -1,0 +1,32 @@
+{
+  "runId": "f1798a78-e1da-4e25-83a6-9071ed18aa42",
+  "mode": "discovery",
+  "goal": "Look up the supplied member and read their savings balance",
+  "model": "gpt-5.4-mini",
+  "modelBacked": true,
+  "policy": {
+    "allowedOrigins": [
+      "http://127.0.0.1:4173",
+      "http://localhost:4173"
+    ],
+    "allowedActions": [
+      "navigate",
+      "click",
+      "fill",
+      "select",
+      "extract",
+      "assert"
+    ],
+    "irreversible": "confirm",
+    "allowedPathPatterns": [
+      {}
+    ],
+    "riskyTargetPatterns": [
+      {},
+      {},
+      {}
+    ]
+  },
+  "profile": "member.lookup-savings-balance",
+  "startedAt": "2026-09-18T05:43:47.303Z"
+}

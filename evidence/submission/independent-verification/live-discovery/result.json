@@ -1,0 +1,222 @@
+{
+  "status": "success",
+  "runId": "f1798a78-e1da-4e25-83a6-9071ed18aa42",
+  "artifact": {
+    "schemaVersion": "1.0",
+    "id": "member.lookup-savings-balance",
+    "version": "1.0.0",
+    "name": "Look up savings balance",
+    "description": "Look up the supplied member and read their savings balance",
+    "surface": {
+      "adapter": "playwright",
+      "appFamily": "northstar-core",
+      "entrypoint": "http://127.0.0.1:4173"
+    },
+    "inputs": {
+      "memberId": {
+        "type": "string",
+        "description": "Institution-scoped member identifier",
+        "sensitive": true
+      }
+    },
+    "outputs": {
+      "balance": {
+        "type": "string",
+        "description": "Display-formatted savings balance",
+        "sensitive": true
+      }
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "action": "navigate",
+        "value": {
+          "source": "literal",
+          "value": "http://127.0.0.1:4173"
+        },
+        "risk": "safe",
+        "timeoutMs": 5000,
+        "retries": 0
+      },
+      {
+        "id": "step-2",
+        "action": "fill",
+        "target": {
+          "strategy": "role",
+          "value": "textbox",
+          "name": "Member Number",
+          "frame": [],
+          "logicalTarget": "member-number-input",
+          "fallback": [
+            {
+              "strategy": "label",
+              "value": "Member Number",
+              "name": "Member Number",
+              "frame": [],
+              "logicalTarget": "member-number-input",
+              "fallback": [],
+              "rationale": "Same member number input field identified by label"
+            }
+          ],
+          "rationale": "Fill the member number field with the supplied identifier to search for the member record"
+        },
+        "value": {
+          "source": "input",
+          "key": "memberId"
+        },
+        "risk": "safe",
+        "timeoutMs": 5000,
+        "retries": 0
+      },
+      {
+        "id": "step-3",
+        "action": "click",
+        "target": {
+          "strategy": "role",
+          "value": "button",
+          "name": "Find Member",
+          "frame": [],
+          "logicalTarget": "find-member-button",
+          "fallback": [],
+          "rationale": "Submit the member lookup search to retrieve the savings summary or a not-found result"
+        },
+        "risk": "safe",
+        "timeoutMs": 5000,
+        "retries": 0
+      },
+      {
+        "id": "step-4",
+        "action": "extract",
+        "target": {
+          "strategy": "css",
+          "value": "#balance",
+          "name": "",
+          "frame": [],
+          "logicalTarget": "balance",
+          "fallback": [],
+          "rationale": "Application-declared extractable field for the current savings balance"
+        },
+        "outputKey": "balance",
+        "risk": "safe",
+        "timeoutMs": 5000,
+        "retries": 0
+      }
+    ],
+    "checkpoint": {
+      "kind": "text",
+      "locator": {
+        "strategy": "css",
+        "value": "#detail-member-id",
+        "fallback": [],
+        "rationale": "Selected member identifier on the detail screen"
+      },
+      "expected": {
+        "source": "input",
+        "key": "memberId"
+      },
+      "timeoutMs": 5000
+    },
+    "successAssertions": [
+      {
+        "kind": "visible",
+        "locator": {
+          "strategy": "css",
+          "value": "#detail",
+          "fallback": [],
+          "rationale": "Member detail container"
+        },
+        "timeoutMs": 5000
+      }
+    ],
+    "businessOutcomes": [
+      {
+        "code": "member_not_found",
+        "message": "No member exists for the supplied identifier",
+        "assertion": {
+          "kind": "text",
+          "locator": {
+            "strategy": "css",
+            "value": "#message",
+            "fallback": [],
+            "rationale": "Dedicated application alert region"
+          },
+          "expected": {
+            "source": "literal",
+            "value": "Member not found"
+          },
+          "timeoutMs": 5000
+        }
+      }
+    ],
+    "interventions": [
+      {
+        "code": "session_expired",
+        "message": "The application session expired",
+        "assertion": {
+          "kind": "visible",
+          "locator": {
+            "strategy": "css",
+            "value": "#session-expired",
+            "fallback": [],
+            "rationale": "Session expiry alert"
+          },
+          "timeoutMs": 1000
+        },
+        "resume": "retry_step"
+      }
+    ],
+    "recoveries": [
+      {
+        "id": "dismiss-service-notice",
+        "when": {
+          "kind": "visible",
+          "locator": {
+            "strategy": "css",
+            "value": "#service-notice",
+            "fallback": [],
+            "rationale": "Known service notice"
+          },
+          "timeoutMs": 1000
+        },
+        "steps": [
+          {
+            "id": "dismiss-service-notice",
+            "action": "click",
+            "target": {
+              "strategy": "css",
+              "value": "#dismiss-notice",
+              "fallback": [],
+              "rationale": "Dismiss control inside known notice"
+            },
+            "risk": "safe",
+            "timeoutMs": 1000,
+            "retries": 0
+          }
+        ],
+        "maxAttempts": 1
+      }
+    ],
+    "provenance": {
+      "discoveryRunId": "f1798a78-e1da-4e25-83a6-9071ed18aa42",
+      "model": "gpt-5.4-mini",
+      "createdFromLiveRun": true,
+      "configuredAdditions": [
+        "success contract",
+        "business outcomes",
+        "recoveries",
+        "interventions"
+      ],
+      "modelResponseIds": [
+        "resp_0b373eb313e524b2016aaccf93cc7487d09ba12fdeb06b9610",
+        "resp_0e235885d827bea5016aaccf9547cc87d0831972c16e42e93b",
+        "resp_0c9377bc4312c8f9016aaccf97d56487d0afb7cb6e4b196f3b",
+        "resp_046351243ab36ce0016aaccf999c2487d0adfb705eb44c7a8b",
+        "resp_06b3a7568f81dbf9016aaccf9acb9c87d093c90bf4d06e9a3f"
+      ]
+    },
+    "approval": "draft",
+    "createdAt": "2026-09-18T05:43:55.750Z"
+  },
+  "artifactPath": "/Users/joywang/Desktop/computer-use-automation/artifacts/generated/member.lookup-savings-balance.f1798a78-e1da-4e25-83a6-9071ed18aa42.json",
+  "evidencePath": "/Users/joywang/Desktop/computer-use-automation/evidence/runs/f1798a78-e1da-4e25-83a6-9071ed18aa42"
+}

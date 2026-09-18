@@ -30,6 +30,10 @@ This directory contains the reviewed evidence submitted for the end-to-end autom
 6. `same-session-handoff/`
    - Replay that pauses for session expiry, transfers the retained session to a human, records the sanitized human actions, returns control, and resumes successfully.
 
+## Supplemental independent verification
+
+`independent-verification/` records a fresh post-hardening API-backed discovery and a model-disabled replay of its exact generated artifact for a second valid member. It supplements rather than replaces the canonical evidence indexed by `index.json`, which also covers not-found, delayed-response, and same-session handoff paths.
+
 ## Before committing
 
 - Complete `index.json` with the actual run IDs, commands, statuses, and relative paths.
