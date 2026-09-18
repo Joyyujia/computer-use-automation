@@ -54,7 +54,15 @@ Discovery opens and policy-checks the configured entrypoint before the model rec
 
 The live adapter records provider response IDs and marks provenance as live. The scripted adapter used in tests cannot produce live provenance. The reviewed API-backed run, exact generated artifact, deterministic replays, and same-session handoff are tracked in [`evidence/submission/index.json`](evidence/submission/index.json); tests remain separate supporting evidence. A fresh post-hardening live discovery and model-disabled replay are retained as [supplemental independent verification](evidence/submission/independent-verification/index.json).
 
-Replay a reviewed artifact without any model call:
+For the complete discovery-to-replay demonstration, copy the `artifactPath` printed by the successful discovery result and pass that exact, unedited file to replay. Removing `OPENAI_API_KEY` demonstrates that replay has no model dependency:
+
+```bash
+env -u OPENAI_API_KEY npm run replay -- \
+  /absolute/path/printed/as/artifactPath \
+  '{"memberId":"67890"}'
+```
+
+The repository also includes a bundled-fixture shortcut for exercising replay without first making an API call:
 
 ```bash
 npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"12345"}'
@@ -79,6 +87,8 @@ CUA_TARGET_URL='http://127.0.0.1:4173/?hang=1' npm run replay -- artifacts/looku
 
 `CUA_TARGET_URL` is a CLI entrypoint overlay for fixture and tenant routing; the replay engine still executes the validated artifact with no model decisions.
 
+The `?hang=1` fixture intentionally withholds every terminal result. After the bounded automation timeout it can enter operator handoff and wait for up to five minutes; open `http://127.0.0.1:4174` and choose **Abort run** when the timeout path has been demonstrated.
+
 ## Human handoff demo
 
 The normal replay command can trigger the configured `session_expired` intervention:
@@ -87,7 +97,7 @@ The normal replay command can trigger the configured `session_expired` intervent
 CUA_HEADLESS=false CUA_TARGET_URL='http://127.0.0.1:4173/?expired=1' npm run replay -- artifacts/lookup-balance.v1.json '{"memberId":"12345"}'
 ```
 
-Open `http://127.0.0.1:4174`, take control, click **Restore session** in the live page, then return control. Replay revalidates that the expiry state cleared and continues in the same Playwright context. The control lease rejects automation input while the human owns the session. The operator can also abort; typed values are recorded only as `Typed redacted text`.
+Open `http://127.0.0.1:4174`, take control, click **Restore session** inside the operator console's session preview, then return control. Do not click the control in the separate Playwright browser window: only preview interactions are recorded as human actions and enable **Return control**. Replay revalidates that the expiry state cleared and continues in the same Playwright context. The control lease rejects automation input while the human owns the session. The operator can also abort; typed values are recorded only as `Typed redacted text`.
 
 ## Tests
 
