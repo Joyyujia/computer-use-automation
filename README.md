@@ -41,6 +41,10 @@ npm run demo:app
 In another terminal, export the values from `.env` and run genuine discovery:
 
 ```bash
+set -a
+source .env
+set +a
+
 CUA_MEMBER_ID=12345 npm run discover -- "Look up the supplied member and read their savings balance"
 ```
 
@@ -131,9 +135,11 @@ The LLM learns the ordered navigation, fill, click, and extraction targets. The 
 Ad-hoc evidence under `evidence/runs/` and generated artifacts are ignored by default. The deliberately reviewed submission bundle is tracked under [`evidence/submission/`](evidence/submission/), containing:
 
 1. The genuine discovery evidence and resulting artifact, including provider response IDs and `createdFromLiveRun: true`.
-2. A successful deterministic replay.
+2. A model-disabled deterministic replay of that exact artifact for a distinct valid member.
 3. A `member_not_found` replay.
-4. A handoff run showing pause, human actions, and resume.
+4. A delayed-response replay proving bounded waiting.
+5. A same-session handoff run showing pause, a recorded human action, return of control, and successful resume.
+6. A separately indexed post-hardening live discovery and exact-artifact replay retained as supplemental independent verification.
 
 Its index records the artifact SHA-256, redacted reproduction commands, run IDs, outcome codes, and review status. To regenerate the bundle, repeat the commands above, inspect every generated file, and copy only the reviewed runs rather than committing `evidence/runs/` wholesale.
 

@@ -34,10 +34,10 @@ This directory contains the reviewed evidence submitted for the end-to-end autom
 
 `independent-verification/` records a fresh post-hardening API-backed discovery and a model-disabled replay of its exact generated artifact for a second valid member. It supplements rather than replaces the canonical evidence indexed by `index.json`, which also covers not-found, delayed-response, and same-session handoff paths.
 
-## Before committing
+## Completed review checklist
 
-- Complete `index.json` with the actual run IDs, commands, statuses, and relative paths.
-- Confirm the second-member, not-found, delayed, and handoff runs use the exact artifact in `artifact/`.
-- Search for API keys, credentials, raw sensitive input values, balances, email addresses, and unexpected URL query values.
-- Do not include `.env`, browser storage, cookies, unreviewed screenshots, or failed exploratory runs.
-- Keep `evidence/samples/` labeled as scripted evidence; it is not a substitute for this directory.
+- [x] `index.json` contains the actual run IDs, commands, statuses, and relative paths.
+- [x] The second-member, not-found, delayed, and handoff runs use the exact artifact in `artifact/`.
+- [x] The bundle was checked for API keys, credentials, raw sensitive input values, balances, email addresses, and unexpected URL query values.
+- [x] The bundle excludes `.env`, browser storage, cookies, unreviewed screenshots, and failed exploratory runs.
+- [x] `evidence/samples/` remains explicitly labeled as scripted evidence and is not presented as the API-backed submission run.
