@@ -83,6 +83,7 @@ export async function replay(raw: unknown, inputs: Record<string, unknown>, opti
     }
   };
   const executeOnce = async (step: Step, value?: string): Promise<string | undefined> => {
+    await enforceBrowserState(page, policy, { allowInitialBlank: step.action === "navigate" });
     if (step.action === "assert" && step.assertion) { if (!await surface.matches(step.assertion, inputs)) throw new Error(`Assertion failed: ${step.id}`); return; }
     const extracted = await surface.execute(step, value); await enforceBrowserState(page, policy); return extracted;
   };
