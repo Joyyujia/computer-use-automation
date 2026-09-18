@@ -1,0 +1,7 @@
+{
+  "status": "business_outcome",
+  "runId": "4b2ad433-4dbe-487c-8074-fc4689d8832a",
+  "code": "member_not_found",
+  "message": "No member exists for the supplied identifier",
+  "evidencePath": "/Users/joywang/Desktop/computer-use-automation/evidence/runs/4b2ad433-4dbe-487c-8074-fc4689d8832a"
+}

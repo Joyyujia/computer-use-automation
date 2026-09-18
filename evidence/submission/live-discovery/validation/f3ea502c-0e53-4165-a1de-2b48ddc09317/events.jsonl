@@ -1,0 +1,8 @@
+{"at":"2026-09-17T04:33:57.604Z","type":"step_started","stepId":"step-1","action":"navigate"}
+{"at":"2026-09-17T04:33:57.631Z","type":"step_completed","stepId":"step-1"}
+{"at":"2026-09-17T04:33:57.665Z","type":"step_started","stepId":"step-2","action":"fill"}
+{"at":"2026-09-17T04:33:57.689Z","type":"step_completed","stepId":"step-2"}
+{"at":"2026-09-17T04:33:57.692Z","type":"step_started","stepId":"step-3","action":"click"}
+{"at":"2026-09-17T04:33:57.733Z","type":"step_completed","stepId":"step-3"}
+{"at":"2026-09-17T04:33:57.771Z","type":"step_started","stepId":"step-4","action":"extract"}
+{"at":"2026-09-17T04:33:57.773Z","type":"step_completed","stepId":"step-4"}

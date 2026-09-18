@@ -41,14 +41,14 @@ npm run demo:app
 In another terminal, export the values from `.env` and run genuine discovery:
 
 ```bash
-npm run discover -- "Look up member 12345 and read their savings balance"
+CUA_MEMBER_ID=12345 npm run discover -- "Look up the supplied member and read their savings balance"
 ```
 
 Discovery opens and policy-checks the configured entrypoint before the model receives its first observation. It writes a draft capability under `artifacts/generated/` only after replaying that exact generated artifact in a fresh browser and matching its typed outputs. Failed actions are retained in evidence/history but never compiled. It does not silently promote the artifact to approved.
 
 `approval: "draft"` is review metadata in this assignment implementation, not a replay gate: the CLI intentionally executes draft artifacts so a newly discovered capability can be demonstrated and evaluated. A production registry or deployment wrapper should reject non-`approved` artifacts before invoking replay.
 
-The live adapter records provider response IDs and marks provenance as live. The scripted adapter used in tests cannot produce live provenance. A real API-backed run is still required for submission; tests are not a substitute.
+The live adapter records provider response IDs and marks provenance as live. The scripted adapter used in tests cannot produce live provenance. The reviewed API-backed run, exact generated artifact, deterministic replays, and same-session handoff are tracked in [`evidence/submission/index.json`](evidence/submission/index.json); tests remain separate supporting evidence.
 
 Replay a reviewed artifact without any model call:
 
@@ -128,12 +128,14 @@ The LLM learns the ordered navigation, fill, click, and extraction targets. The 
 
 ## Evidence policy
 
-Ad-hoc evidence under `evidence/runs/` and generated artifacts are ignored by default. Before submission, perform a genuine API-backed discovery run, inspect its contents for sensitive data, then deliberately commit:
+Ad-hoc evidence under `evidence/runs/` and generated artifacts are ignored by default. The deliberately reviewed submission bundle is tracked under [`evidence/submission/`](evidence/submission/), containing:
 
 1. The genuine discovery evidence and resulting artifact, including provider response IDs and `createdFromLiveRun: true`.
 2. A successful deterministic replay.
 3. A `member_not_found` replay.
 4. A handoff run showing pause, human actions, and resume.
+
+Its index records the artifact SHA-256, redacted reproduction commands, run IDs, outcome codes, and review status. To regenerate the bundle, repeat the commands above, inspect every generated file, and copy only the reviewed runs rather than committing `evidence/runs/` wholesale.
 
 DOM observations include rendered text and semantic controls, not raw HTML. Extraction candidates come first from `data-automation-field`; the legacy fallback admits visible table cells, definition values, and output elements only when they have a stable ID and a nearby semantic label. Their values are always redacted. Unlabeled or selector-unstable legacy fields require human review instead of guessed extraction.
 

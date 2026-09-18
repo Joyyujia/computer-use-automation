@@ -1,0 +1,57 @@
+{
+  "classification": "genuine_api_backed_submission_evidence",
+  "artifact": {
+    "path": "artifact/member.lookup-savings-balance.06c00e05-84ba-4e90-8499-e5f0855585ca.json",
+    "sha256": "4ddb2295a4ccee55eee71460501c86fcff68476cc02150fc08d17c837b886920",
+    "capabilityId": "member.lookup-savings-balance",
+    "discoveryRunId": "06c00e05-84ba-4e90-8499-e5f0855585ca",
+    "createdFromLiveRun": true
+  },
+  "runs": {
+    "liveDiscovery": {
+      "runId": "06c00e05-84ba-4e90-8499-e5f0855585ca",
+      "command": "CUA_MEMBER_ID=<REDACTED> npm run discover -- \"Look up the supplied member and read their savings balance\"",
+      "status": "success",
+      "evidencePath": "live-discovery"
+    },
+    "secondMemberReplay": {
+      "runId": "47e709f7-59ab-48c5-83d2-9c1984e959f1",
+      "command": "env -u OPENAI_API_KEY npm run replay -- <submitted-artifact> '{\"memberId\":\"<REDACTED>\"}'",
+      "inputCase": "second_valid_member_distinct_from_discovery",
+      "modelAccessDisabled": true,
+      "status": "success",
+      "evidencePath": "replay-second-member"
+    },
+    "notFoundReplay": {
+      "runId": "4b2ad433-4dbe-487c-8074-fc4689d8832a",
+      "command": "env -u OPENAI_API_KEY npm run replay -- <submitted-artifact> '{\"memberId\":\"<REDACTED>\"}'",
+      "inputCase": "unknown_member",
+      "modelAccessDisabled": true,
+      "status": "business_outcome",
+      "code": "member_not_found",
+      "evidencePath": "replay-not-found"
+    },
+    "delayedReplay": {
+      "runId": "7144dd46-da9b-4c43-87e6-0f4e442fc3a2",
+      "command": "env -u OPENAI_API_KEY CUA_HEADLESS=false CUA_TARGET_URL='http://127.0.0.1:4173/?delayMs=3000' npm run replay -- <submitted-artifact> '{\"memberId\":\"<REDACTED>\"}'",
+      "inputCase": "second_valid_member_with_3000ms_response_delay",
+      "modelAccessDisabled": true,
+      "status": "success",
+      "evidencePath": "replay-delayed"
+    },
+    "sameSessionHandoff": {
+      "runId": "4a751e0a-64c9-4a50-8d2d-7c9dac463c66",
+      "command": "env -u OPENAI_API_KEY CUA_HEADLESS=false CUA_TARGET_URL='http://127.0.0.1:4173/?expired=1' npm run replay -- <submitted-artifact> '{\"memberId\":\"<REDACTED>\"}'",
+      "status": "success",
+      "interventionId": "4600084b-3cf0-406f-b93e-f4de5deca252",
+      "humanActionCount": 1,
+      "evidencePath": "same-session-handoff"
+    }
+  },
+  "review": {
+    "redactionChecked": true,
+    "secretsChecked": true,
+    "exactArtifactReused": true,
+    "notes": "Reviewed genuine discovery, exact-artifact replay for a distinct valid member, explicit not-found outcome, 3000ms delayed success, and same-session human handoff with one recorded preview click."
+  }
+}
